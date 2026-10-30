@@ -144,7 +144,7 @@ static int gap_event(struct ble_gap_event *ev, void *arg)
     case BLE_GAP_EVENT_CONNECT:
         if (ev->connect.status == 0) {
             s_conn = ev->connect.conn_handle;
-            ESP_LOGI(TAG, "dien thoai ket noi Bluetooth");
+            ESP_LOGI(TAG, "dien thoai ket noi Bluetooth: cho dien thoai doc dich vu HLP va bat thong bao RX");
         } else {
             advertise();
         }
@@ -185,7 +185,10 @@ static void on_sync(void)
         ESP_LOGW(TAG, "khong co dia chi Bluetooth");
         return;
     }
-    ESP_LOGI(TAG, "dang quang ba \"%s\": cho Waze Mod ket noi", ble_svc_gap_device_name());
+    uint8_t a[6] = {0};
+    ble_hs_id_copy_addr(s_addr_type, a, NULL);
+    ESP_LOGI(TAG, "dang quang ba \"%s\" (%02X:%02X:%02X:%02X:%02X:%02X, dich vu HLP RX handle %u): cho Waze Mod ket noi",
+             ble_svc_gap_device_name(), a[5], a[4], a[3], a[2], a[1], a[0], (unsigned)s_rx_handle);
     advertise();
 }
 
