@@ -267,14 +267,23 @@ static void touch_read_cb(lv_indev_t *indev, lv_indev_data_t *data)
     uint16_t x = 0, y = 0;
     uint8_t cnt = 0;
     esp_lcd_touch_read_data(s_tp);
+    static uint32_t last_ms;
+    static int32_t last_x, last_y;
     bool pressed = esp_lcd_touch_get_coordinates(s_tp, &x, &y, NULL, &cnt, 1) && cnt > 0;
-    data->state = pressed ? LV_INDEV_STATE_PRESSED : LV_INDEV_STATE_RELEASED;
-    if (pressed) {
-        if (x >= UI_W) x = UI_W - 1;
-        if (y >= UI_H) y = UI_H - 1;
-        data->point.x = s_rot ? UI_W - 1 - x : x;
-        data->point.y = s_rot ? UI_H - 1 - y : y;
+    uint32_t now = lv_tick_get();
+    if (!pressed) {                       /* XPT2046 hay mat 1-2 lan doc khi dang giu tay: chua coi la nha trong 150 ms */
+        bool hold = last_ms && now - last_ms < 150;
+        data->state = hold ? LV_INDEV_STATE_PRESSED : LV_INDEV_STATE_RELEASED;
+        data->point.x = last_x;
+        data->point.y = last_y;
+        return;
     }
+    last_ms = now ? now : 1;
+    data->state = LV_INDEV_STATE_PRESSED;
+    if (x >= UI_W) x = UI_W - 1;
+    if (y >= UI_H) y = UI_H - 1;
+    data->point.x = last_x = s_rot ? UI_W - 1 - x : x;
+    data->point.y = last_y = s_rot ? UI_H - 1 - y : y;
 }
 
 static void touch_init(lv_display_t *disp)

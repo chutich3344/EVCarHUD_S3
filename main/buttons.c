@@ -11,13 +11,14 @@
 
 #define POLL_MS 20
 #define LONG_MS 3000
+#define DOUBLE_MS 400                                              /* 2 lan bam cach nhau toi da 0,4 s: xoay */
 
 static const char *TAG = "nut";
 
 static void btn_task(void *arg)
 {
     (void)arg;
-    int held = 0;
+    int held = 0, since = -1;                                      /* since: ms tu lan bam nha truoc, -1 = khong cho */
     bool fired = false;
     for (;;) {
         vTaskDelay(pdMS_TO_TICKS(POLL_MS));
@@ -38,6 +39,16 @@ static void btn_task(void *arg)
             continue;
         }
         if (held >= 40 && !fired) {                                /* bam nha (loc rung 40 ms) */
+            if (since >= 0) {                                      /* lan bam thu 2: xoay man hinh */
+                since = -1;
+                board_ui_lock();
+                ui_rotate();
+                board_ui_unlock();
+            } else {
+                since = 0;                                         /* doi xem co lan bam thu 2 khong */
+            }
+        } else if (since >= 0 && (since += POLL_MS) > DOUBLE_MS) { /* chi bam 1 lan: doi Ngay/Dem */
+            since = -1;
             board_ui_lock();
             ui_cycle_mode();
             board_ui_unlock();

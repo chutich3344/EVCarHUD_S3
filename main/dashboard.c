@@ -369,12 +369,17 @@ static void on_click(lv_event_t *e)
     ui_cycle_mode();
 }
 
-static void on_long_press(lv_event_t *e)
+void ui_rotate(void)
 {
-    (void)e;
     if (!rotate_cb) return;
     rotate_cb();
     ui_toast("Đã xoay màn hình");
+}
+
+static void on_long_press(lv_event_t *e)
+{
+    (void)e;
+    ui_rotate();
 }
 
 /* ======================= dung giao dien ======================= */
