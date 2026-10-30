@@ -16,11 +16,14 @@ CONFIG_BTDM_CTRL_MODE_BLE_ONLY=y
 CONFIG_BT_BLUEDROID_ENABLED=n
 CONFIG_BT_NIMBLE_ENABLED=y
 CONFIG_BT_NIMBLE_MAX_CONNECTIONS=1
-CONFIG_BT_NIMBLE_ROLE_CENTRAL=n
+# Phai bat vai tro trung tam: tu ESP-IDF 5.5 GATT client (CONFIG_BT_NIMBLE_GATT_CLIENT) chi co khi bat vai tro nay.
+# Khong co GATT client thi NimBLE vut chi bao Service Changed (op 0x1d) dien thoai gui luc vua ket noi ma khong xac nhan,
+# Android ket o do, khong do duoc dich vu HLP va Waze Mod bao "HLP characteristics missing".
+CONFIG_BT_NIMBLE_ROLE_CENTRAL=y
+CONFIG_BT_NIMBLE_GATT_CLIENT=y
 CONFIG_BT_NIMBLE_ROLE_OBSERVER=n
 CONFIG_BT_NIMBLE_ATT_PREFERRED_MTU=247
-# Khong ghep doi/luu khoa (giong ban P4): dien thoai da ghep doi se nho danh sach dich vu cu va gui chi bao
-# Service Changed ma NimBLE (khong co GATT client) bo qua, Waze Mod bao "HLP characteristics missing".
+# Khong ghep doi/luu khoa (giong ban P4).
 CONFIG_BT_NIMBLE_SECURITY_ENABLE=n
 CONFIG_BT_NIMBLE_NVS_PERSIST=n
 
