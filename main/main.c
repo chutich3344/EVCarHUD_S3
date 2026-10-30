@@ -3,9 +3,11 @@
  * Giu BOOT 3 giay: bat/tat che do trinh dien (du lieu gia, khong can dien thoai). */
 #include <stdio.h>
 #include "sdkconfig.h"
+#include "driver/gpio.h"
 #include "esp_app_desc.h"
 #include "esp_heap_caps.h"
 #include "esp_log.h"
+#include "esp_system.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "nvs_flash.h"
@@ -32,8 +34,9 @@ static void on_level(int level)                              /* vuot toc do: LED
     if (level == UI_LEVEL_OVER) board_beep(2);
 }
 
-/* Man kiem tra mau: 4 o DO / XANH LA / XANH DUONG / TRANG dung thu tu nay tu goc tren-trai theo chieu kim dong ho.
- * Sai mau hay sai huong thi chinh trong idf.py menuconfig > EVCarHUD > Man hinh (xem README). */
+/* Man kiem tra mau: 4 o DO / XANH LA / TRANG / XANH DUONG (tren-trai, tren-phai, duoi-trai, duoi-phai).
+ * Sau do den LED nhay xanh duong 3 giay: bam BOOT luc nay de doi sang chip man hinh con lai (ILI9341 <-> ST7789)
+ * va khoi dong lai, khong can build lai. Sai mau / sai huong khac: idf.py menuconfig > EVCarHUD > Man hinh (README). */
 static void color_test(void)
 {
 #if CONFIG_EVCARHUD_COLOR_TEST
@@ -64,7 +67,8 @@ static void color_test(void)
     lv_obj_set_style_text_color(t, lv_color_white(), 0);
     lv_obj_set_style_pad_all(t, 6, 0);
     const esp_app_desc_t *ad = esp_app_get_description();
-    lv_label_set_text_fmt(t, "EVCarHUD %s", ad ? ad->version : "");
+    lv_label_set_text_fmt(t, "EVCarHUD %s · %s\nBấm BOOT nếu hình nhiễu", ad ? ad->version : "", board_lcd_name());
+    lv_obj_set_style_text_align(t, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_center(t);
     lv_screen_load(scr);
     board_ui_unlock();
@@ -74,10 +78,22 @@ static void color_test(void)
     vTaskDelay(pdMS_TO_TICKS(600));
     board_set_led(false, true, false);
     vTaskDelay(pdMS_TO_TICKS(600));
-    board_set_led(false, false, true);
-    vTaskDelay(pdMS_TO_TICKS(600));
+
+    gpio_config_t bc = {.pin_bit_mask = 1ULL << CONFIG_EVCARHUD_PIN_BOOT, .mode = GPIO_MODE_INPUT, .pull_up_en = GPIO_PULLUP_ENABLE};
+    gpio_config(&bc);
+    for (int i = 0; i < 30; i++) {                           /* 3 giay nhay xanh duong: cho bam BOOT */
+        board_set_led(false, false, (i / 3) % 2 == 0);
+        if (gpio_get_level(CONFIG_EVCARHUD_PIN_BOOT) == 0) {
+            settings_set_lcd_alt(!settings_get_lcd_alt());
+            ESP_LOGW(TAG, "doi chip man hinh (dang dung %s), khoi dong lai", board_lcd_name());
+            board_set_led(false, false, false);
+            board_beep(1);
+            vTaskDelay(pdMS_TO_TICKS(400));
+            esp_restart();
+        }
+        vTaskDelay(pdMS_TO_TICKS(100));
+    }
     board_set_led(false, false, false);
-    vTaskDelay(pdMS_TO_TICKS(700));
 #endif
 }
 

@@ -3,10 +3,11 @@ menu "EVCarHUD"
     menu "Man hinh"
         choice EVCARHUD_LCD_DRIVER
             prompt "Chip dieu khien man hinh"
-            default EVCARHUD_LCD_ILI9341
+            default EVCARHUD_LCD_ST7789
             help
-                Ban ESP32-2432S028 1 cong USB dung ILI9341. Ban 2 cong USB (USB-C + micro) co lo dung ST7789.
-                Man hinh trang / sai mau sau khi nap thi doi sang chip con lai.
+                Ban ESP32-2432S028 2 cong USB (USB-C + micro, mat sau ghi TPM408-2.8) dung ST7789.
+                Ban cu 1 cong micro USB dung ILI9341. Khong can build lai de thu chip con lai:
+                bam BOOT khi den LED nhay xanh duong luc khoi dong (xem README).
             config EVCARHUD_LCD_ILI9341
                 bool "ILI9341"
             config EVCARHUD_LCD_ST7789

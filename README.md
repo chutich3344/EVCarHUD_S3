@@ -44,12 +44,14 @@ File nằm ở `build\evcarhud-full.bin`.
 
 ## 4. Lần chạy đầu: màn kiểm tra màu
 
+**Màn hình nhiễu / sọc / không ra 4 ô màu?** Là sai chip màn hình. Firmware mặc định dùng **ST7789** (board 2 cổng USB-C + micro, mặt sau ghi TPM408-2.8); board cũ 1 cổng micro USB dùng ILI9341. Đổi không cần build lại: cắm điện, đợi khoảng 1 giây tới khi **đèn LED nhấp nháy xanh dương**, bấm **BOOT** một lần → loa kêu "tít", board khởi động lại với chip còn lại (nhớ luôn cho lần sau). Bấm lại lần nữa để quay về.
+
 Khi khởi động, màn hình hiện 4 ô: **ĐỎ** (trên trái), **XANH LÁ** (trên phải), **TRẮNG** (dưới trái), **XANH DƯƠNG** (dưới phải), và LED nháy đỏ → xanh lá → xanh dương.
 Nếu sai, mở `idf.py menuconfig` → **EVCarHUD → Man hinh**:
 
 | Hiện tượng | Sửa |
 |---|---|
-| Màn trắng / không hiện gì | Đổi chip **ILI9341 ↔ ST7789** (board 2 cổng USB hay dùng ST7789) |
+| Màn trắng / nhiễu / không hiện gì | Bấm BOOT khi LED nhấp nháy xanh dương (xem trên), hoặc đổi chip **ILI9341 ↔ ST7789** trong menuconfig |
 | Đỏ và xanh dương đổi chỗ | Bật/tắt **Thu tu mau BGR** |
 | Màu như ảnh âm bản | Bật/tắt **Dao mau** |
 | Hình bị lật ngang / dọc | Bật/tắt **Lat ngang** / **Lat doc** |

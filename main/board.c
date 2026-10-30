@@ -20,9 +20,8 @@
 #include "freertos/queue.h"
 #include "freertos/semphr.h"
 #include "freertos/task.h"
-#if CONFIG_EVCARHUD_LCD_ILI9341
 #include "esp_lcd_ili9341.h"
-#endif
+#include "settings.h"
 #if CONFIG_EVCARHUD_TOUCH
 #include "esp_lcd_touch.h"
 #include "esp_lcd_touch_xpt2046.h"
@@ -36,6 +35,16 @@
 #define LCD_INVERT true
 #else
 #define LCD_INVERT false
+#endif
+#ifdef CONFIG_EVCARHUD_LCD_BGR
+#define LCD_BGR true
+#else
+#define LCD_BGR false
+#endif
+#ifdef CONFIG_EVCARHUD_LCD_ILI9341
+#define LCD_IS_ILI9341 true
+#else
+#define LCD_IS_ILI9341 false
 #endif
 #ifdef CONFIG_EVCARHUD_LCD_SWAP_XY
 #define LCD_SWAP_XY true
@@ -67,6 +76,9 @@ static const char *TAG = "board";
 static lv_display_t *s_disp;
 static esp_lcd_panel_handle_t s_panel;
 static SemaphoreHandle_t s_mutex;
+static bool s_ili9341 = LCD_IS_ILI9341;
+
+const char *board_lcd_name(void) { return s_ili9341 ? "ILI9341" : "ST7789"; }
 
 /* ---------------------- den nen (PWM) ---------------------- */
 static void backlight_init(void)
@@ -340,23 +352,22 @@ lv_display_t *board_display_init(void)
     };
     ESP_ERROR_CHECK(esp_lcd_new_panel_io_spi((esp_lcd_spi_bus_handle_t)LCD_SPI_HOST, &io_cfg, &io));
 
+    /* Doi chip bang nut BOOT luc khoi dong (main.c): dung chip con lai, dao mau va thu tu mau doi theo */
+    bool alt = settings_get_lcd_alt();
+    s_ili9341 = LCD_IS_ILI9341 != alt;
     esp_lcd_panel_dev_config_t pc = {
         .reset_gpio_num = CONFIG_EVCARHUD_PIN_LCD_RST,
-#if CONFIG_EVCARHUD_LCD_BGR
-        .rgb_ele_order = LCD_RGB_ELEMENT_ORDER_BGR,
-#else
-        .rgb_ele_order = LCD_RGB_ELEMENT_ORDER_RGB,
-#endif
+        .rgb_ele_order = (LCD_BGR != alt) ? LCD_RGB_ELEMENT_ORDER_BGR : LCD_RGB_ELEMENT_ORDER_RGB,
         .bits_per_pixel = 16,
     };
-#if CONFIG_EVCARHUD_LCD_ILI9341
-    ESP_ERROR_CHECK(esp_lcd_new_panel_ili9341(io, &pc, &s_panel));
-#else
-    ESP_ERROR_CHECK(esp_lcd_new_panel_st7789(io, &pc, &s_panel));
-#endif
+    if (s_ili9341) {
+        ESP_ERROR_CHECK(esp_lcd_new_panel_ili9341(io, &pc, &s_panel));
+    } else {
+        ESP_ERROR_CHECK(esp_lcd_new_panel_st7789(io, &pc, &s_panel));
+    }
     ESP_ERROR_CHECK(esp_lcd_panel_reset(s_panel));
     ESP_ERROR_CHECK(esp_lcd_panel_init(s_panel));
-    ESP_ERROR_CHECK(esp_lcd_panel_invert_color(s_panel, LCD_INVERT));
+    ESP_ERROR_CHECK(esp_lcd_panel_invert_color(s_panel, LCD_INVERT != alt));
     ESP_ERROR_CHECK(esp_lcd_panel_swap_xy(s_panel, LCD_SWAP_XY));
     ESP_ERROR_CHECK(esp_lcd_panel_mirror(s_panel, LCD_MIRROR_X, LCD_MIRROR_Y));
     ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(s_panel, true));
@@ -366,6 +377,6 @@ lv_display_t *board_display_init(void)
 #endif
 
     xTaskCreatePinnedToCore(lvgl_task, "lvgl", 6144, NULL, 4, NULL, 1);
-    ESP_LOGI(TAG, "man hinh %dx%d san sang (SPI %d MHz)", UI_W, UI_H, CONFIG_EVCARHUD_LCD_SPI_MHZ);
+    ESP_LOGI(TAG, "man hinh %s %dx%d san sang (SPI %d MHz)", board_lcd_name(), UI_W, UI_H, CONFIG_EVCARHUD_LCD_SPI_MHZ);
     return s_disp;
 }

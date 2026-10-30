@@ -6,3 +6,5 @@ int settings_get_mode(void);          /* UI_MODE_*: Tu dong / Ngay / Dem */
 void settings_set_mode(int mode);
 bool settings_get_demo(void);         /* che do trinh dien (du lieu gia) */
 void settings_set_demo(bool on);
+bool settings_get_lcd_alt(void);      /* true: dung chip man hinh con lai (doi bang nut BOOT luc khoi dong) */
+void settings_set_lcd_alt(bool on);
