@@ -1,0 +1,135 @@
+menu "EVCarHUD"
+
+    menu "Man hinh"
+        choice EVCARHUD_LCD_DRIVER
+            prompt "Chip dieu khien man hinh"
+            default EVCARHUD_LCD_ILI9341
+            help
+                Ban ESP32-2432S028 1 cong USB dung ILI9341. Ban 2 cong USB (USB-C + micro) co lo dung ST7789.
+                Man hinh trang / sai mau sau khi nap thi doi sang chip con lai.
+            config EVCARHUD_LCD_ILI9341
+                bool "ILI9341"
+            config EVCARHUD_LCD_ST7789
+                bool "ST7789"
+        endchoice
+
+        config EVCARHUD_LCD_SPI_MHZ
+            int "Toc do SPI man hinh (MHz)"
+            range 10 80
+            default 40
+
+        config EVCARHUD_LCD_BGR
+            bool "Thu tu mau BGR (do va xanh duong bi doi cho thi bat/tat muc nay)"
+            default y if EVCARHUD_LCD_ILI9341
+            default n
+
+        config EVCARHUD_LCD_INVERT
+            bool "Dao mau (nen trang thanh den, anh am ban thi bat/tat muc nay)"
+            default y if EVCARHUD_LCD_ST7789
+            default n
+
+        config EVCARHUD_LCD_SWAP_XY
+            bool "Xoay ngang (doi truc X/Y)"
+            default y
+
+        config EVCARHUD_LCD_MIRROR_X
+            bool "Lat ngang hinh"
+            default n
+
+        config EVCARHUD_LCD_MIRROR_Y
+            bool "Lat doc hinh"
+            default n
+
+        config EVCARHUD_COLOR_TEST
+            bool "Man kiem tra mau luc khoi dong (4 o DO / XANH LA / XANH DUONG / TRANG)"
+            default y
+
+        config EVCARHUD_BL_DAY
+            int "Do sang den nen ban ngay (%)"
+            range 10 100
+            default 100
+
+        config EVCARHUD_BL_NIGHT
+            int "Do sang den nen ban dem (%)"
+            range 5 100
+            default 45
+    endmenu
+
+    menu "Chan GPIO (mac dinh theo so do ESP32-2432S028)"
+        config EVCARHUD_PIN_LCD_SCLK
+            int "LCD SCLK"
+            default 14
+        config EVCARHUD_PIN_LCD_MOSI
+            int "LCD MOSI"
+            default 13
+        config EVCARHUD_PIN_LCD_MISO
+            int "LCD MISO"
+            default 12
+        config EVCARHUD_PIN_LCD_CS
+            int "LCD CS"
+            default 15
+        config EVCARHUD_PIN_LCD_DC
+            int "LCD DC"
+            default 2
+        config EVCARHUD_PIN_LCD_RST
+            int "LCD RST (-1: noi chung voi chan EN)"
+            default -1
+        config EVCARHUD_PIN_LCD_BL
+            int "Den nen"
+            default 21
+
+        config EVCARHUD_TOUCH
+            bool "Cam ung XPT2046 (cham man hinh de doi Ngay/Dem)"
+            default y
+        config EVCARHUD_PIN_TP_SCLK
+            int "Cam ung SCLK"
+            depends on EVCARHUD_TOUCH
+            default 25
+        config EVCARHUD_PIN_TP_MOSI
+            int "Cam ung MOSI"
+            depends on EVCARHUD_TOUCH
+            default 32
+        config EVCARHUD_PIN_TP_MISO
+            int "Cam ung MISO"
+            depends on EVCARHUD_TOUCH
+            default 39
+        config EVCARHUD_PIN_TP_CS
+            int "Cam ung CS"
+            depends on EVCARHUD_TOUCH
+            default 33
+
+        config EVCARHUD_PIN_LED_R
+            int "Den LED do (-1: khong dung). Sang khi vuot toc do"
+            default 4
+        config EVCARHUD_PIN_LED_G
+            int "Den LED xanh la (-1: khong dung, chi de tat)"
+            default 16
+        config EVCARHUD_PIN_LED_B
+            int "Den LED xanh duong (-1: khong dung, chi de tat)"
+            default 17
+
+        config EVCARHUD_PIN_SPEAKER
+            int "Loa (-1: khong keu). Tit khi bat dau vuot toc do"
+            default 26
+
+        config EVCARHUD_PIN_BOOT
+            int "Nut BOOT"
+            default 0
+    endmenu
+
+    config EVCARHUD_LDR
+        bool "Tu dong Ngay/Dem theo cam bien anh sang (GPIO34)"
+        default n
+        help
+            Tat: che do Tu dong theo gio dien thoai gui (6:00-18:00 la ngay).
+            Bat: doc quang tro tren GPIO34; xem log "anh sang" de chon nguong cho dung.
+    config EVCARHUD_LDR_DARK_ABOVE
+        int "Coi la toi khi gia tri doc duoc lon hon"
+        depends on EVCARHUD_LDR
+        range 0 4095
+        default 1500
+
+    config EVCARHUD_BLE_NAME
+        string "Ten Bluetooth (Waze Mod tim theo ten nay)"
+        default "EVCarHUD"
+endmenu

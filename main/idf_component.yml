@@ -1,0 +1,6 @@
+dependencies:
+  idf: ">=5.3.0"
+  lvgl/lvgl: "~9.2.2"                          # cung ban voi cong cu xem truoc tren PC (tools/pc_preview)
+  espressif/esp_lcd_ili9341: "^2.0.0"          # man hinh ILI9341 (ST7789 co san trong ESP-IDF)
+  espressif/esp_lcd_touch: "~1.1.2"            # ban 1.2 danh dau API cu la deprecated bang cu phap C23
+  atanisoft/esp_lcd_touch_xpt2046: "^1.0.5"    # cam ung dien tro XPT2046
