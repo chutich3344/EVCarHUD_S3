@@ -19,6 +19,10 @@ CONFIG_BT_NIMBLE_MAX_CONNECTIONS=1
 CONFIG_BT_NIMBLE_ROLE_CENTRAL=n
 CONFIG_BT_NIMBLE_ROLE_OBSERVER=n
 CONFIG_BT_NIMBLE_ATT_PREFERRED_MTU=247
+# Khong ghep doi/luu khoa (giong ban P4): dien thoai da ghep doi se nho danh sach dich vu cu va gui chi bao
+# Service Changed ma NimBLE (khong co GATT client) bo qua, Waze Mod bao "HLP characteristics missing".
+CONFIG_BT_NIMBLE_SECURITY_ENABLE=n
+CONFIG_BT_NIMBLE_NVS_PERSIST=n
 
 # LVGL 9: mau 16 bit; font la font tu sinh (vn_font_*.c, speed_font_*.c) nen chi giu font mac dinh cua LVGL.
 CONFIG_LV_COLOR_DEPTH_16=y
