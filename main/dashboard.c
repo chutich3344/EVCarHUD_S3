@@ -15,7 +15,8 @@
  * Le 10 px, khe giua cac the 8 px, cot trai 132 px, cot phai 160 px, bo goc 10 px, vien 1 px.
  * The bien bao: bien duong gan nhat (khu dan cu, cam re, cam vuot...). The canh bao: su kien gan nhat
  * (canh sat, camera, tai nan, ket xe...). Mau so toc do: xanh la, vang khi cach gioi han <= 5 km/h,
- * do khi vuot (kem vien do nhap nhay quanh man hinh). Cham man hinh hoac bam BOOT: Tu dong -> Ngay -> Dem. */
+ * do khi vuot (kem vien do nhap nhay quanh man hinh). Cham man hinh hoac bam BOOT: Tu dong -> Ngay -> Dem.
+ * Giu tay tren man hinh 1 giay: xoay giao dien 180 do. */
 #include "dashboard.h"
 #include "dashboard_signs.h"
 #include "ui_fonts.h"
@@ -85,6 +86,7 @@ static bool night;
 static void (*mode_cb)(int);
 static void (*night_cb)(bool);
 static void (*level_cb)(int);
+static void (*rotate_cb)(void);
 
 /* ======================= tien ich ======================= */
 static lv_obj_t *mk_box(lv_obj_t *p, int x, int y, int w, int h)
@@ -367,6 +369,14 @@ static void on_click(lv_event_t *e)
     ui_cycle_mode();
 }
 
+static void on_long_press(lv_event_t *e)
+{
+    (void)e;
+    if (!rotate_cb) return;
+    rotate_cb();
+    ui_toast("Đã xoay màn hình");
+}
+
 /* ======================= dung giao dien ======================= */
 static void build_nav(void)
 {
@@ -454,7 +464,8 @@ void dashboard_create(lv_obj_t *screen)
 {
     scr = screen;
     lv_obj_remove_flag(scr, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_add_event_cb(scr, on_click, LV_EVENT_CLICKED, NULL);
+    lv_obj_add_event_cb(scr, on_click, LV_EVENT_SHORT_CLICKED, NULL);   /* cham: Ngay/Dem; giu 1 giay: xoay */
+    lv_obj_add_event_cb(scr, on_long_press, LV_EVENT_LONG_PRESSED, NULL);
 
     build_nav();
     build_speed();
@@ -749,3 +760,4 @@ void ui_set_ambient(int dark)
 void ui_set_mode_hook(void (*cb)(int)) { mode_cb = cb; }
 void ui_set_night_hook(void (*cb)(bool)) { night_cb = cb; if (cb) cb(night); }
 void ui_set_level_hook(void (*cb)(int)) { level_cb = cb; }
+void ui_set_rotate_hook(void (*cb)(void)) { rotate_cb = cb; }

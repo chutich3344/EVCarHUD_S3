@@ -77,8 +77,19 @@ static lv_display_t *s_disp;
 static esp_lcd_panel_handle_t s_panel;
 static SemaphoreHandle_t s_mutex;
 static bool s_ili9341 = LCD_IS_ILI9341;
+static bool s_rot;                        /* xoay 180 do = lat ca hai chieu */
 
 const char *board_lcd_name(void) { return s_ili9341 ? "ILI9341" : "ST7789"; }
+
+bool board_get_rotated(void) { return s_rot; }
+
+void board_set_rotated(bool on)                  /* goi trong khoa LVGL; lenh SPI tu doi het lan ve dang chay */
+{
+    s_rot = on;
+    if (!s_panel) return;
+    esp_lcd_panel_mirror(s_panel, LCD_MIRROR_X != on, LCD_MIRROR_Y != on);
+    lv_obj_invalidate(lv_screen_active());
+}
 
 /* ---------------------- den nen (PWM) ---------------------- */
 static void backlight_init(void)
@@ -259,8 +270,10 @@ static void touch_read_cb(lv_indev_t *indev, lv_indev_data_t *data)
     bool pressed = esp_lcd_touch_get_coordinates(s_tp, &x, &y, NULL, &cnt, 1) && cnt > 0;
     data->state = pressed ? LV_INDEV_STATE_PRESSED : LV_INDEV_STATE_RELEASED;
     if (pressed) {
-        data->point.x = x < UI_W ? x : UI_W - 1;
-        data->point.y = y < UI_H ? y : UI_H - 1;
+        if (x >= UI_W) x = UI_W - 1;
+        if (y >= UI_H) y = UI_H - 1;
+        data->point.x = s_rot ? UI_W - 1 - x : x;
+        data->point.y = s_rot ? UI_H - 1 - y : y;
     }
 }
 
@@ -301,6 +314,7 @@ static void touch_init(lv_display_t *disp)
     lv_indev_set_type(indev, LV_INDEV_TYPE_POINTER);
     lv_indev_set_read_cb(indev, touch_read_cb);
     lv_indev_set_display(indev, disp);
+    lv_indev_set_long_press_time(indev, 1000);                     /* giu 1 giay: xoay man hinh */
     ESP_LOGI(TAG, "cam ung san sang");
 }
 #endif
@@ -352,7 +366,7 @@ lv_display_t *board_display_init(void)
     };
     ESP_ERROR_CHECK(esp_lcd_new_panel_io_spi((esp_lcd_spi_bus_handle_t)LCD_SPI_HOST, &io_cfg, &io));
 
-    /* Doi chip bang nut BOOT luc khoi dong (main.c): dung chip con lai, dao mau va thu tu mau doi theo */
+    /* Doi chip bang nut BOOT luc khoi dong (main.c): dung chip con lai, thu tu mau doi theo */
     bool alt = settings_get_lcd_alt();
     s_ili9341 = LCD_IS_ILI9341 != alt;
     esp_lcd_panel_dev_config_t pc = {
@@ -367,9 +381,10 @@ lv_display_t *board_display_init(void)
     }
     ESP_ERROR_CHECK(esp_lcd_panel_reset(s_panel));
     ESP_ERROR_CHECK(esp_lcd_panel_init(s_panel));
-    ESP_ERROR_CHECK(esp_lcd_panel_invert_color(s_panel, LCD_INVERT != alt));
+    ESP_ERROR_CHECK(esp_lcd_panel_invert_color(s_panel, LCD_INVERT));
     ESP_ERROR_CHECK(esp_lcd_panel_swap_xy(s_panel, LCD_SWAP_XY));
-    ESP_ERROR_CHECK(esp_lcd_panel_mirror(s_panel, LCD_MIRROR_X, LCD_MIRROR_Y));
+    s_rot = settings_get_rotated();
+    ESP_ERROR_CHECK(esp_lcd_panel_mirror(s_panel, LCD_MIRROR_X != s_rot, LCD_MIRROR_Y != s_rot));
     ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(s_panel, true));
 
 #if CONFIG_EVCARHUD_TOUCH

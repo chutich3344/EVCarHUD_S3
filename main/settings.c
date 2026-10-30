@@ -28,3 +28,5 @@ bool settings_get_demo(void) { return get_u8("demo", 0) != 0; }
 void settings_set_demo(bool on) { set_u8("demo", on ? 1 : 0); }
 bool settings_get_lcd_alt(void) { return get_u8("lcd", 0) != 0; }
 void settings_set_lcd_alt(bool on) { set_u8("lcd", on ? 1 : 0); }
+bool settings_get_rotated(void) { return get_u8("rot", 0) != 0; }
+void settings_set_rotated(bool on) { set_u8("rot", on ? 1 : 0); }

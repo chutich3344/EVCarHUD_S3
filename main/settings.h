@@ -8,3 +8,5 @@ bool settings_get_demo(void);         /* che do trinh dien (du lieu gia) */
 void settings_set_demo(bool on);
 bool settings_get_lcd_alt(void);      /* true: dung chip man hinh con lai (doi bang nut BOOT luc khoi dong) */
 void settings_set_lcd_alt(bool on);
+bool settings_get_rotated(void);      /* xoay giao dien 180 do (giu tay tren man hinh 1 giay) */
+void settings_set_rotated(bool on);

@@ -26,7 +26,6 @@ menu "EVCarHUD"
 
         config EVCARHUD_LCD_INVERT
             bool "Dao mau (nen trang thanh den, anh am ban thi bat/tat muc nay)"
-            default y if EVCARHUD_LCD_ST7789
             default n
 
         config EVCARHUD_LCD_SWAP_XY
@@ -39,6 +38,7 @@ menu "EVCarHUD"
 
         config EVCARHUD_LCD_MIRROR_Y
             bool "Lat doc hinh"
+            default y if EVCARHUD_LCD_ST7789
             default n
 
         config EVCARHUD_COLOR_TEST

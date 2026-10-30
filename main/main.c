@@ -26,7 +26,14 @@ static const char *TAG = "evcarhud";
 /* --- giao dien -> phan cung --- */
 static void on_night(bool night) { board_set_backlight(night ? CONFIG_EVCARHUD_BL_NIGHT : CONFIG_EVCARHUD_BL_DAY); }
 
-static void on_mode(int mode) { settings_set_mode(mode); }   /* nho che do Ngay/Dem qua lan tat may */
+static void on_mode(int mode) { settings_set_mode(mode); }
+
+static void on_rotate(void)                                 /* giu tay tren man hinh: xoay 180 do va nho lai */
+{
+    bool r = !board_get_rotated();
+    board_set_rotated(r);
+    settings_set_rotated(r);
+}   /* nho che do Ngay/Dem qua lan tat may */
 
 static void on_level(int level)                              /* vuot toc do: LED do + 2 tieng tit */
 {
@@ -142,6 +149,7 @@ void app_main(void)
     ui_set_night_hook(on_night);                             /* dat den nen ngay theo Ngay/Dem */
     ui_set_mode_hook(on_mode);
     ui_set_level_hook(on_level);
+    ui_set_rotate_hook(on_rotate);
     link_init();                                             /* bo giai ma HLP + chon duong truyen */
     if (demo) {
         demo_start();

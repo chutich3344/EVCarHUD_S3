@@ -10,6 +10,7 @@ Firmware HUD cho board "Cheap Yellow Display" ESP32-2432S028 (ESP32-WROOM, màn 
 - Biển giới hạn tốc độ và biển báo gần nhất (khu dân cư, cấm vượt, cấm rẽ...).
 - Cảnh báo gần nhất (cảnh sát, camera, tai nạn, kẹt xe...) và giờ đến, quãng đường còn lại.
 - Ban ngày / Ban đêm: chạm màn hình hoặc bấm BOOT để đổi Tự động → Ngày → Đêm (tự động theo giờ điện thoại, 6:00–18:00 là ngày).
+- **Xoay màn hình 180°**: giữ tay trên màn hình 1 giây (dùng khi lắp board ngược trong vỏ). Board nhớ hướng cho lần sau.
 
 ## 1. Cài ESP-IDF (một lần)
 
