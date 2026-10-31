@@ -9,7 +9,8 @@ extern "C" {
 void demo_start(void);
 void demo_stop(void);
 bool demo_running(void);
-void demo_step(int ms);      /* nhay toi ms sau (chi de chup anh xem truoc tren PC) */
+void demo_step(int ms);
+int demo_step_ms(int i);     /* do dai muc i cua kich ban (0: het), muc 0 la logo */      /* nhay toi ms sau (chi de chup anh xem truoc tren PC) */
 
 #ifdef __cplusplus
 }

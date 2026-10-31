@@ -14,6 +14,7 @@ gen() {  # ten co ho do_dam bo_ky_tu(full|digits|ascii)
     full)   args=(--font $F/$fam/files/$fam-latin-$w-normal.woff -r $LATIN --font $F/$fam/files/$fam-vietnamese-$w-normal.woff -r $VIET) ;;
     ascii)  args=(--font $F/$fam/files/$fam-latin-$w-normal.woff -r 0x20-0x7E) ;;
     digits) args=(--font $F/$fam/files/$fam-latin-$w-normal.woff -r 0x30-0x39,0x2D,0x20) ;;
+    clock)  args=(--font $F/$fam/files/$fam-latin-$w-normal.woff -r 0x30-0x39,0x2D,0x20,0x3A) ;;
   esac
   npx lv_font_conv --bpp 4 --size $size --format lvgl --no-compress --lv-include lvgl.h \
       --lv-font-name $name "${args[@]}" -o $OUT/$name.c
@@ -30,3 +31,4 @@ gen ui_font_speed62 62 inter 700 digits
 gen ui_font_speed88 88 inter 700 digits
 gen ui_font_sign32  32 inter 700 digits
 gen ui_font_clock60 60 jetbrains-mono 700 digits
+gen ui_font_clock80 80 jetbrains-mono 700 clock

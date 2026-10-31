@@ -89,6 +89,8 @@ static lv_obj_t *card_al, *al_tile, *img_al, *lbl_al, *lbl_al_dist;
 static lv_obj_t *card_eta, *eta_tile, *clk_face, *clk_h_hand, *clk_m_hand, *img_tip, *lbl_eta, *lbl_eta2;
 static lv_obj_t *stby, *lbl_sb_brand, *lbl_sb_stat, *flip[2], *flip_bot[2], *flip_line[2], *lbl_clk[2];
 static lv_obj_t *sb_bar, *lbl_date, *lbl_gps;
+static lv_obj_t *dg_h, *dg_c, *dg_m;        /* dong ho dien tu 24 gio (chua ket noi dien thoai) */
+static lv_timer_t *colon_tmr;
 static lv_obj_t *frame, *toast, *lbl_toast;
 static lv_timer_t *blink_tmr, *toast_tmr;
 
@@ -300,10 +302,10 @@ static void apply_theme(void)
     for (size_t i = 0; i < sizeof cards / sizeof cards[0]; i++) card_colors(cards[i]);
     lv_obj_set_style_shadow_width(card_next, 0, 0);
 
-    lv_obj_t *fg[] = {lbl_dist, lbl_street, lbl_al, lbl_eta, lbl_unit, lbl_limit_cap, lbl_sb_brand, lbl_clk[0], lbl_date};
+    lv_obj_t *fg[] = {lbl_dist, lbl_street, lbl_al, lbl_eta, lbl_unit, lbl_limit_cap, lbl_sb_brand, lbl_clk[0], lbl_date, dg_h};
     for (size_t i = 0; i < sizeof fg / sizeof fg[0]; i++) lv_obj_set_style_text_color(fg[i], th->fg, 0);
     lv_obj_set_style_text_color(lbl_next_cap, th->mut, 0);
-    lv_obj_t *acc[] = {lbl_act, lbl_exit, lbl_eta2, lbl_clk[1], lbl_gps};
+    lv_obj_t *acc[] = {lbl_act, lbl_exit, lbl_eta2, lbl_clk[1], lbl_gps, dg_c, dg_m};
     for (size_t i = 0; i < sizeof acc / sizeof acc[0]; i++) lv_obj_set_style_text_color(acc[i], th->accent, 0);
     lv_obj_set_style_text_color(lbl_next, th->orange, 0);
     lv_obj_set_style_text_color(lbl_sign, th->sign_txt, 0);
@@ -603,24 +605,44 @@ static void build_standby(void)
         flip_line[i] = mk_box(flip[i], 0, FLIP_H / 2 - 2, FLIP_W - 2, 2);            /* khe lat giua the */
         lv_obj_set_style_bg_opa(flip_line[i], LV_OPA_COVER, 0);
     }
+    /* chua ket noi dien thoai: dong ho dien tu 24 gio HH:MM, dau ":" nhap nhay moi nua giay */
+    const lv_font_t *df = &ui_font_clock80;
+    int w2 = text_w("00", df), wc = text_w(":", df), dx = (UI_W - 2 * w2 - wc) / 2;
+    int dy = 112 - (baseline(df) - 29);                           /* giua chu so (cao ~58 px) o y = 112 */
+    dg_h = mk_label_w(stby, df, dx, dy, w2, LV_TEXT_ALIGN_CENTER);
+    dg_c = mk_label(stby, df, dx + w2, dy, ":");
+    dg_m = mk_label_w(stby, df, dx + w2 + wc, dy, w2, LV_TEXT_ALIGN_CENTER);
+    lv_label_set_long_mode(dg_h, LV_LABEL_LONG_CLIP);
+    lv_label_set_long_mode(dg_m, LV_LABEL_LONG_CLIP);
     sb_bar = mk_card(stby, M, UI_H - M - 40, UI_W - 2 * M, 40, R_CARD);
     lbl_date = mk_label_w(sb_bar, &ui_font_txt14, 10, 10, 180, LV_TEXT_ALIGN_LEFT);
     lbl_gps = mk_label_w(sb_bar, &ui_font_txt14, UI_W - 2 * M - 2 - 10 - 110, 10, 110, LV_TEXT_ALIGN_RIGHT);
+}
+
+static void colon_cb(lv_timer_t *t)
+{
+    (void)t;
+    if (screen != SCR_STANDBY || phone || clk_h < 0) lv_obj_set_style_text_opa(dg_c, LV_OPA_COVER, 0);
+    else lv_obj_set_style_text_opa(dg_c, lv_obj_get_style_text_opa(dg_c, 0) ? LV_OPA_TRANSP : LV_OPA_COVER, 0);
 }
 
 static void render_standby(void)
 {
     if (!stby) return;
     char b[48];
+    char hh[4] = "--", mm[4] = "--";
     if (clk_h >= 0) {
-        snprintf(b, sizeof b, "%02d", clk_h % 100);
-        lv_label_set_text(lbl_clk[0], b);
-        snprintf(b, sizeof b, "%02d", clk_m % 100);
-        lv_label_set_text(lbl_clk[1], b);
-    } else {
-        lv_label_set_text(lbl_clk[0], "--");
-        lv_label_set_text(lbl_clk[1], "--");
+        snprintf(hh, sizeof hh, "%02d", clk_h % 24);
+        snprintf(mm, sizeof mm, "%02d", clk_m % 60);
     }
+    lv_label_set_text(lbl_clk[0], hh);
+    lv_label_set_text(lbl_clk[1], mm);
+    lv_label_set_text(dg_h, hh);
+    lv_label_set_text(dg_m, mm);
+    for (int i = 0; i < 2; i++) show(flip[i], phone);              /* da ket noi: dong ho lat; chua: dong ho dien tu */
+    show(dg_h, !phone);
+    show(dg_c, !phone);
+    show(dg_m, !phone);
     if (day > 0 && month > 0 && wday >= 0) snprintf(b, sizeof b, "%s, %d Tháng %d", WDAY_NAME[wday % 7], day, month);
     else if (wday >= 0) snprintf(b, sizeof b, "%s", WDAY_NAME[wday % 7]);
     else snprintf(b, sizeof b, "Chờ giờ từ điện thoại");
@@ -648,7 +670,8 @@ lv_obj_t *ui_splash_create(const char *version)
     lv_obj_t *v = lv_label_create(scr);
     lv_obj_set_style_text_font(v, &ui_font_sm12, 0);
     lv_obj_set_style_text_color(v, lv_color_hex(0x9CA3AF), 0);
-    lv_label_set_text_fmt(v, "Phiên bản %s", version);
+    if (version && version[0]) lv_label_set_text_fmt(v, "Phiên bản %s", version);
+    else lv_label_set_text(v, "");
     lv_obj_align(v, LV_ALIGN_BOTTOM_MID, 0, -14);
     return scr;
 }
@@ -666,6 +689,7 @@ void dashboard_create(lv_obj_t *screen_obj)
     build_alert();
     build_eta();
     build_standby();
+    colon_tmr = lv_timer_create(colon_cb, 500, NULL);
 
     /* vien do khi vuot toc do */
     frame = mk_box(scr, 0, 0, UI_W, UI_H);
@@ -676,7 +700,7 @@ void dashboard_create(lv_obj_t *screen_obj)
     lv_timer_pause(blink_tmr);
 
     /* thong bao nho */
-    toast = mk_box(scr, 60, 102, UI_W - 120, 36);
+    toast = mk_box(scr, 24, 102, UI_W - 48, 36);
     lv_obj_set_style_radius(toast, 18, 0);
     lv_obj_set_style_bg_opa(toast, LV_OPA_COVER, 0);
     lbl_toast = mk_label(toast, &ui_font_txt14, 0, 0, "");
@@ -715,6 +739,8 @@ void ui_set_speed(int kmh)
 }
 
 int ui_get_speed(void) { return speed; }
+
+lv_obj_t *ui_screen(void) { return scr; }
 
 void ui_set_speed_limit(int kmh)
 {

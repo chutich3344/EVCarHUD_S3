@@ -5,7 +5,7 @@ Firmware HUD cho board "Cheap Yellow Display" ESP32-2432S028 (ESP32-WROOM, màn 
 
 ![Giao diện](docs/giao-dien.png)
 
-- **Màn chờ** (chưa có dữ liệu, hoặc đứng yên 30 giây khi không dẫn đường): đồng hồ lật giờ | phút, ngày tháng, dòng "Chờ kết nối Waze qua điện thoại" hoặc "Đã kết nối điện thoại".
+- **Màn chờ** (chưa có dữ liệu, hoặc đứng yên 30 giây khi không dẫn đường): chưa kết nối điện thoại thì là đồng hồ điện tử 24 giờ (HH:MM, dấu ":" nhấp nháy), đã kết nối thì là đồng hồ lật; kèm ngày tháng và dòng "Chờ kết nối Waze qua điện thoại" hoặc "Đã kết nối điện thoại". Board không có pin giữ giờ: mới cắm điện thì đồng hồ hiện "--:--" cho tới lần đầu điện thoại kết nối, sau đó tự chạy tiếp kể cả khi mất kết nối.
 - **Chạy thường** (đang chạy, chưa đặt lộ trình): tốc độ số lớn bên trái, biển giới hạn + biển báo bên phải, cảnh báo và lời nhắc ở dưới. Chưa mở Waze (chỉ có tốc độ GPS): biển giới hạn hiện "-", thẻ cảnh báo "Đường thoáng".
 - **Dẫn đường**: thẻ rẽ ở trên, tốc độ và biển báo ở giữa, cảnh báo và giờ đến ở dưới.
 - Thẻ dẫn đường: mũi tên rẽ, khoảng cách, kiểu rẽ, tên đường, thẻ "Tiếp theo".
@@ -47,6 +47,8 @@ idf.py merge-bin -o evcarhud-full.bin
 
 File nằm ở `build\evcarhud-full.bin`.
 
+**Không cài ESP-IDF cũng được**: mỗi lần đẩy code lên nhánh `main`, GitHub tự build (mục **Actions → Build firmware**) và đặt file `evcarhud-2.8-<commit>.bin` vào bản phát hành **ban-moi-nhat** (mục **Releases** của repo). Tải file đó rồi đưa lên `/admin`, địa chỉ 0x0.
+
 ## 4. Lần chạy đầu: màn kiểm tra màu
 
 **Màn hình nhiễu / sọc / không ra 4 ô màu?** Là sai chip màn hình. Firmware mặc định dùng **ST7789** (board 2 cổng USB-C + micro, mặt sau ghi TPM408-2.8); board cũ 1 cổng micro USB dùng ILI9341. Đổi không cần build lại: cắm điện, đợi khoảng 1 giây tới khi **đèn LED nhấp nháy xanh dương**, bấm **BOOT** một lần → loa kêu "tít", board khởi động lại với chip còn lại (nhớ luôn cho lần sau). Bấm lại lần nữa để quay về.
@@ -70,7 +72,7 @@ Trên điện thoại: **Waze Mod → HUD → Bluetooth LE**, chọn thiết b�
 
 ## 6. Chế độ trình diễn (không cần điện thoại)
 
-Giữ nút **BOOT 3 giây**: bật/tắt chế độ trình diễn (dữ liệu giả, chạy vòng 60 giây: chạy chưa có Waze, chạy thường có Waze, rồi dẫn đường), board tự khởi động lại. Dùng để trưng bày hoặc kiểm tra màn hình.
+Giữ nút **BOOT 3 giây**: bật/tắt chế độ trình diễn (dữ liệu giả, chạy đúng kịch bản "Chạy thử" trên evcarhud.com, mỗi mục Ngày rồi Đêm: logo → 1 chưa kết nối điện thoại (đồng hồ điện tử 24 giờ) → 2 đã kết nối (đồng hồ lật) → 3 Ngày/Đêm/Tự động → 4 chạy chưa có Waze → 5 chạy có Waze → 6 chỉ đường chưa có Waze → 7 chỉ đường có Waze. Tên mục hiện ở giữa màn hình 2 giây), board tự khởi động lại. Dùng để trưng bày hoặc kiểm tra màn hình.
 
 ## Chân GPIO (mặc định)
 
