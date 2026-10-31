@@ -24,7 +24,7 @@ jobs:
         with:
           esp_idf_version: release-v5.5
           target: esp32
-          command: git config --global --add safe.directory '*' && idf.py build && idf.py merge-bin -o evcarhud-full.bin
+          command: git config --global --add safe.directory /app/${{ github.repository }} && idf.py build && idf.py merge-bin -o evcarhud-full.bin
 
       - name: Dat ten file theo commit
         run: |
