@@ -14,4 +14,11 @@ extern const lv_font_t ui_font_speed88;  /* Inter Bold 88, chi chu so va "-": to
 extern const lv_font_t ui_font_sign32;   /* Inter Bold 32, chi chu so va "-": bien gioi han lon (chay thuong) */
 extern const lv_font_t ui_font_clock80;  /* JetBrains Mono Bold 80, chu so va ":": dong ho dien tu man cho */
 extern const lv_font_t ui_font_clock60;  /* JetBrains Mono Bold 60, chi chu so va "-": dong ho man cho */
+/* giao dien A (dan duong) + C (chay thuong) */
+extern const lv_font_t ui_font_num54;    /* Inter Bold 54, chu so va ",": khoang cach re */
+extern const lv_font_t ui_font_num30;    /* Inter Bold 30, chu so va ",": khoang cach canh bao (dai vang) */
+extern const lv_font_t ui_font_speed72;  /* Inter Bold 72, chu so va "-": toc do khi dan duong */
+extern const lv_font_t ui_font_speed110; /* Inter Bold 110, chu so va "-": toc do khi chay thuong */
+extern const lv_font_t ui_font_sign40;   /* Inter Bold 40, chu so va "-": bien gioi han to (chay thuong) */
+extern const lv_font_t ui_font_unit22;   /* Inter Bold 22, chi ASCII: don vi m / km, so loi ra vong xuyen */
 #endif
