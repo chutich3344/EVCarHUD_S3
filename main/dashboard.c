@@ -369,13 +369,13 @@ static void layout_signs(void)
 {
     bool big = screen == SCR_CRUISE;
     int w = lv_obj_get_width(card_sign) - 2, h = lv_obj_get_height(card_sign) - 2;
-    int R = big ? 76 : 52, S = big ? 72 : 48;
+    int R = big ? 62 : 52, S = big ? 56 : 48;
     bool two = !lv_obj_has_flag(img_sign, LV_OBJ_FLAG_HIDDEN);
     int half = w / 2;
     int cx1 = two ? half / 2 + 4 : w / 2, cx2 = half + half / 2 - 4;
     int y = (h - (R + 6 + 14)) / 2;
     lv_obj_set_size(sign_ring, R, R);
-    lv_obj_set_style_border_width(sign_ring, big ? 7 : 5, 0);
+    lv_obj_set_style_border_width(sign_ring, big ? 6 : 5, 0);
     lv_obj_set_pos(sign_ring, cx1 - R / 2, y);
     const lv_font_t *f = limit >= 100 ? (big ? &ui_font_sign24 : &ui_font_txt16) : (big ? &ui_font_sign32 : &ui_font_sign24);
     lv_obj_set_style_text_font(lbl_limit, f, 0);                   /* 3 chu so: nho lai cho vua vong */
