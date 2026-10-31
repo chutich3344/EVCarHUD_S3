@@ -60,7 +60,7 @@ int main(int argc, char **argv)
     lv_display_set_buffers(d, buf, NULL, sizeof buf, LV_DISPLAY_RENDER_MODE_PARTIAL);
     lv_display_set_flush_cb(d, flush_cb);
 
-    lv_screen_load(ui_splash_create("v1.1"));          /* man chao logo */
+    lv_screen_load(ui_splash_create("v1.1", UI_SRC_WAZE));          /* man chao logo */
     run(800);
     snprintf(p, sizeof p, "%s/00_man_chao.bmp", dir); save_bmp(p);
 

@@ -72,6 +72,14 @@ static void on_level(int level)                              /* vuot toc do: LED
 
 static void on_beep(int times) { board_beep(times); }
 
+static void on_source(int src)                              /* doi Waze Mod / GOFA: luu roi khoi dong lai */
+{
+    settings_set_source(src);
+    ESP_LOGI(TAG, "doi nguon du lieu sang %s, khoi dong lai", src ? "GOFA" : "Waze Mod");
+    vTaskDelay(pdMS_TO_TICKS(200));
+    esp_restart();
+}
+
 static void on_sound(bool on, int vol)                      /* man cai dat am luong: dat loa + luu NVS */
 {
     board_set_volume(on ? vol : 0);
@@ -148,7 +156,7 @@ static void splash(void)
 {
     const esp_app_desc_t *ad = esp_app_get_description();
     board_ui_lock();
-    lv_screen_load(ui_splash_create(ad ? ad->version : ""));
+    lv_screen_load(ui_splash_create(ad ? ad->version : "", settings_get_source()));
     board_ui_unlock();
     board_set_backlight(CONFIG_EVCARHUD_BL_DAY);
     vTaskDelay(pdMS_TO_TICKS(SPLASH_MS));
@@ -204,6 +212,8 @@ void app_main(void)
     ui_set_sound(settings_get_sound(), settings_get_volume());
     ui_set_beep_hook(on_beep);
     ui_set_sound_hook(on_sound);
+    ui_set_source(settings_get_source());
+    ui_set_source_hook(on_source);
     ui_set_rotate_hook(on_rotate);
     link_init();                                             /* bo giai ma HLP + chon duong truyen */
     {

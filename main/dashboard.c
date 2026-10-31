@@ -126,6 +126,12 @@ static bool hold_used;
 static lv_obj_t *set_scr, *set_toggle, *set_spk_cone, *set_arc[2], *set_x[2], *lbl_set_onoff;
 static lv_obj_t *set_minus, *set_plus, *lbl_set_vol, *vol_bar, *vol_bar_fill;
 static lv_timer_t *set_tmr;
+/* trang Ket noi: chon nguon du lieu Waze Mod / GOFA (doi nguon thi dem 3 giay roi khoi dong lai) */
+static lv_obj_t *set_tab[2], *set_tab_line[2], *lbl_tab[2], *page_snd, *page_src, *src_card[2], *lbl_src_st[2];
+static lv_obj_t *rb_scr, *rb_tile, *lbl_rb_title, *lbl_rb_cnt;
+static int set_page, src = UI_SRC_WAZE, rb_src, rb_left;
+static lv_timer_t *rb_tmr;
+static void (*source_cb)(int);
 
 /* ======================= tien ich ======================= */
 static lv_obj_t *mk_box(lv_obj_t *p, int x, int y, int w, int h)
@@ -238,6 +244,7 @@ static void beep(int times)
 
 static void render_all(void);
 static void settings_render(void);
+static void rb_tmr_cb(lv_timer_t *t);
 static void render_standby(void);
 
 /* ======================= mau sac ======================= */
@@ -640,6 +647,22 @@ static void over_cb(lv_timer_t *t)
 static void settings_render(void)
 {
     lv_obj_set_style_bg_color(set_scr, th->bg, 0);
+    for (int i = 0; i < 2; i++) {
+        bool cur = set_page == i;
+        lv_obj_set_style_text_color(lbl_tab[i], cur ? th->fg : th->mut, 0);
+        lv_obj_set_style_bg_color(set_tab_line[i], cur ? th->ok : th->border, 0);
+        lv_obj_set_height(set_tab_line[i], cur ? 3 : 1);
+        lv_obj_set_y(set_tab_line[i], cur ? 37 : 39);
+        bool on = (i == 1) == (src == UI_SRC_GOFA);
+        lv_obj_set_style_bg_color(src_card[i], on ? (night ? lv_color_hex(0x0D2A1C) : lv_color_hex(0xE3F6EA)) : th->card, 0);
+        lv_obj_set_style_border_color(src_card[i], on ? th->ok : th->border, 0);
+        lv_obj_set_style_border_width(src_card[i], on ? 3 : 1, 0);
+        lv_obj_set_style_text_color((lv_obj_t *)lv_obj_get_user_data(src_card[i]), th->fg, 0);
+        lv_label_set_text(lbl_src_st[i], on ? "Đang dùng" : "Bấm để chọn");
+        lv_obj_set_style_text_color(lbl_src_st[i], on ? th->ok : th->mut, 0);
+    }
+    show(page_snd, set_page == 0);
+    show(page_src, set_page == 1);
     lv_color_t on_c = th->ok;
     lv_obj_set_style_bg_color(set_toggle, snd_on ? on_c : th->card, 0);
     lv_obj_set_style_border_color(set_toggle, snd_on ? on_c : th->border, 0);
@@ -690,13 +713,63 @@ static void settings_changed(void)
     beep(1);                                                       /* nghe thu muc am moi */
 }
 
+static void rb_render(void)
+{
+    lv_label_set_text_fmt(lbl_rb_cnt, "%d", rb_left);
+}
+
+static void rb_cancel(void)
+{
+    lv_timer_pause(rb_tmr);
+    show(rb_scr, false);
+    lv_timer_reset(set_tmr);
+    lv_timer_resume(set_tmr);
+}
+
+static void rb_tmr_cb(lv_timer_t *t)
+{
+    (void)t;
+    if (--rb_left > 0) { rb_render(); return; }
+    lv_timer_pause(rb_tmr);
+    lv_label_set_text(lbl_rb_cnt, "0");
+    src = rb_src;
+    if (source_cb) source_cb(src);                                 /* board luu NVS roi khoi dong lai */
+}
+
+static void rb_start(int want)
+{
+    rb_src = want;
+    rb_left = 3;
+    lv_timer_pause(set_tmr);                                       /* dang dem: khong tu dong dong cai dat */
+    if (rb_tile) lv_obj_delete(rb_tile);
+    rb_tile = ui_partner_tile(rb_scr, want, 72);
+    lv_obj_set_pos(rb_tile, (UI_W - 72) / 2, 26);
+    lv_obj_add_flag(rb_tile, LV_OBJ_FLAG_EVENT_BUBBLE);
+    lv_label_set_text(lbl_rb_title, want == UI_SRC_GOFA ? "Chuyển sang GOFA" : "Chuyển sang Waze Mod");
+    lv_obj_set_style_bg_color(rb_scr, lv_color_hex(0x05080C), 0);
+    lv_obj_set_style_text_color(lbl_rb_title, lv_color_white(), 0);
+    rb_render();
+    show(rb_scr, true);
+    lv_obj_move_foreground(rb_scr);
+    lv_timer_reset(rb_tmr);
+    lv_timer_resume(rb_tmr);
+}
+
 static void on_set_btn(lv_event_t *e)
 {
     lv_obj_t *o = lv_event_get_target(e);
+    lv_timer_reset(set_tmr);
+    if (o == rb_scr) { rb_cancel(); return; }                     /* dang dem: cham de huy */
+    if (o == set_tab[0] || o == set_tab[1]) { set_page = o == set_tab[1]; settings_render(); return; }
+    if (o == src_card[0] || o == src_card[1]) {
+        int want = o == src_card[1] ? UI_SRC_GOFA : UI_SRC_WAZE;
+        if (want != src) rb_start(want);
+        return;
+    }
     if (o == set_toggle) snd_on = !snd_on;
     else if (o == set_minus) snd_vol = snd_vol > 10 ? snd_vol - 10 : 10;
     else if (o == set_plus) snd_vol = snd_vol < 100 ? snd_vol + 10 : 100;
-    else { lv_timer_reset(set_tmr); return; }                     /* cham nen: chi giu man mo */
+    else return;                                                   /* cham nen: chi giu man mo */
     settings_changed();
 }
 
@@ -713,11 +786,24 @@ static void build_settings(void)
     lv_obj_add_flag(set_scr, LV_OBJ_FLAG_CLICKABLE);              /* cham nen khong doi Ngay/Dem */
     lv_obj_add_event_cb(set_scr, on_set_btn, LV_EVENT_CLICKED, NULL);
 
-    /* hang tren: loa ON / OFF */
-    set_toggle = mk_card(set_scr, 12, 12, UI_W - 24, 92, 18);
+    /* thanh chon trang: Am thanh | Ket noi */
+    static const char *const tabs[2] = {"Âm thanh", "Kết nối"};
+    for (int i = 0; i < 2; i++) {
+        set_tab[i] = mk_box(set_scr, i * UI_W / 2, 0, UI_W / 2, 40);
+        lv_obj_add_flag(set_tab[i], LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_add_event_cb(set_tab[i], on_set_btn, LV_EVENT_CLICKED, NULL);
+        lbl_tab[i] = mk_label(set_tab[i], &ui_font_txt16, 0, 0, tabs[i]);
+        lv_obj_center(lbl_tab[i]);
+        set_tab_line[i] = mk_fill(set_tab[i], 0, 37, UI_W / 2, 3, 0);
+    }
+    page_snd = mk_box(set_scr, 0, 44, UI_W, UI_H - 44);
+    page_src = mk_box(set_scr, 0, 44, UI_W, UI_H - 44);
+
+    /* trang Am thanh, hang tren: loa ON / OFF */
+    set_toggle = mk_card(page_snd, 12, 8, UI_W - 24, 76, 18);
     lv_obj_add_flag(set_toggle, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_add_event_cb(set_toggle, on_set_btn, LV_EVENT_CLICKED, NULL);
-    int ix = 92, iy = 46 - 1;                                     /* tam icon loa trong nut */
+    int ix = 92, iy = 38 - 1;                                     /* tam icon loa trong nut */
     lv_obj_t *body = mk_fill(set_toggle, ix - 22, iy - 9, 12, 18, 2);
     lv_obj_add_flag(body, LV_OBJ_FLAG_EVENT_BUBBLE);
     static lv_point_precise_t cone[] = {{0, 9}, {12, 0}, {12, 36}, {0, 27}, {0, 9}};
@@ -748,9 +834,9 @@ static void build_settings(void)
     lbl_set_onoff = mk_label(set_toggle, &ui_font_onoff44, ix + 48, iy - baseline(&ui_font_onoff44) / 2, "ON");
 
     /* hang duoi: [ - ]  50  [ + ] */
-    int by = 116, bh = UI_H - by - 12, bw = 96;
-    set_minus = mk_card(set_scr, 12, by, bw, bh, 18);
-    set_plus = mk_card(set_scr, UI_W - 12 - bw, by, bw, bh, 18);
+    int by = 94, bh = UI_H - 44 - by - 10, bw = 96;
+    set_minus = mk_card(page_snd, 12, by, bw, bh, 18);
+    set_plus = mk_card(page_snd, UI_W - 12 - bw, by, bw, bh, 18);
     lv_obj_t *bt[] = {set_minus, set_plus};
     for (int i = 0; i < 2; i++) {
         lv_obj_add_flag(bt[i], LV_OBJ_FLAG_CLICKABLE);
@@ -760,9 +846,44 @@ static void build_settings(void)
         if (i == 1) mk_bar_line(bt[i], (bw - 2 - 8) / 2, (bh - 2 - 40) / 2, 8, 40);       /* them gach doc: "+" */
     }
     int mx = 12 + bw + 8, mw = UI_W - 2 * mx;
-    lbl_set_vol = mk_label_w(set_scr, &ui_font_num54, mx, by + (bh - baseline(&ui_font_num54)) / 2 - 8, mw, LV_TEXT_ALIGN_CENTER);
-    vol_bar = mk_fill(set_scr, mx + 8, by + bh - 22, mw - 16, 8, 4);
+    lbl_set_vol = mk_label_w(page_snd, &ui_font_num54, mx, by + (bh - baseline(&ui_font_num54)) / 2 - 8, mw, LV_TEXT_ALIGN_CENTER);
+    vol_bar = mk_fill(page_snd, mx + 8, by + bh - 20, mw - 16, 8, 4);
     vol_bar_fill = mk_fill(vol_bar, 0, 0, 0, 8, 4);
+
+    /* trang Ket noi: 2 the to Waze Mod | GOFA */
+    static const char *const names[2] = {"Waze Mod", "GOFA"};
+    int cw = (UI_W - 24 - 8) / 2, ch = UI_H - 44 - 8 - 10;
+    for (int i = 0; i < 2; i++) {
+        src_card[i] = mk_card(page_src, 12 + i * (cw + 8), 8, cw, ch, 18);
+        lv_obj_add_flag(src_card[i], LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_add_event_cb(src_card[i], on_set_btn, LV_EVENT_CLICKED, NULL);
+        lv_obj_t *t = ui_partner_tile(src_card[i], i, 72);
+        lv_obj_add_flag(t, LV_OBJ_FLAG_EVENT_BUBBLE);
+        lv_obj_set_pos(t, (cw - 2 - 72) / 2, 22);
+        lv_obj_t *n = mk_label_w(src_card[i], &ui_font_txt16, 0, 106, cw - 2, LV_TEXT_ALIGN_CENTER);
+        lv_label_set_text(n, names[i]);
+        lv_obj_set_style_text_color(n, lv_color_white(), 0);
+        lv_obj_set_user_data(src_card[i], n);
+        lbl_src_st[i] = mk_label_w(src_card[i], &ui_font_txt14, 0, 132, cw - 2, LV_TEXT_ALIGN_CENTER);
+    }
+
+    /* doi nguon: "Chuyen sang GOFA", dem 3 giay roi khoi dong lai; cham de huy */
+    rb_scr = mk_box(set_scr, 0, 0, UI_W, UI_H);
+    lv_obj_set_style_bg_opa(rb_scr, LV_OPA_COVER, 0);
+    lv_obj_add_flag(rb_scr, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_add_event_cb(rb_scr, on_set_btn, LV_EVENT_CLICKED, NULL);
+    lbl_rb_title = mk_label_w(rb_scr, &ui_font_txt16, 0, 114, UI_W, LV_TEXT_ALIGN_CENTER);
+    lv_obj_t *l = mk_label_w(rb_scr, &ui_font_txt14, 0, 140, UI_W, LV_TEXT_ALIGN_CENTER);
+    lv_label_set_text(l, "Khởi động lại sau");
+    lv_obj_set_style_text_color(l, lv_color_hex(0x8AA0B4), 0);
+    lbl_rb_cnt = mk_label_w(rb_scr, &ui_font_num54, 0, 162, UI_W, LV_TEXT_ALIGN_CENTER);
+    lv_obj_set_style_text_color(lbl_rb_cnt, lv_color_hex(0x22D37A), 0);
+    l = mk_label_w(rb_scr, &ui_font_sm12, 0, 220, UI_W, LV_TEXT_ALIGN_CENTER);
+    lv_label_set_text(l, "Chạm màn hình để huỷ");
+    lv_obj_set_style_text_color(l, lv_color_hex(0x8AA0B4), 0);
+    show(rb_scr, false);
+    rb_tmr = lv_timer_create(rb_tmr_cb, 1000, NULL);
+    lv_timer_pause(rb_tmr);
     show(set_scr, false);
     set_tmr = lv_timer_create(set_tmr_cb, 8000, NULL);
     lv_timer_pause(set_tmr);
@@ -770,6 +891,8 @@ static void build_settings(void)
 
 static void settings_open(void)
 {
+    set_page = 0;
+    show(rb_scr, false);
     settings_render();
     show(set_scr, true);
     lv_obj_move_foreground(set_scr);
@@ -785,6 +908,24 @@ void ui_set_sound(bool on, int volume)
 }
 
 void ui_open_settings(void) { settings_open(); }
+void ui_open_settings_page(int page) { settings_open(); set_page = page ? 1 : 0; settings_render(); }
+
+void ui_set_source(int s) { src = s == UI_SRC_GOFA ? UI_SRC_GOFA : UI_SRC_WAZE; render_standby(); }
+void ui_set_source_hook(void (*cb)(int)) { source_cb = cb; }
+void ui_test_switch(int want) { rb_start(want); }
+
+/* O logo doi tac (tam thoi ve bang chu: doi file logo chinh thuc). */
+lv_obj_t *ui_partner_tile(lv_obj_t *parent, int source, int size)
+{
+    lv_obj_t *t = mk_fill(parent, 0, 0, size, size, size * 22 / 100);
+    bool g = source == UI_SRC_GOFA;
+    lv_obj_set_style_bg_color(t, g ? lv_color_hex(0x0B8F4D) : lv_color_hex(0x33CCFF), 0);
+    const lv_font_t *f = size >= 64 ? &ui_font_unit22 : size >= 30 ? &ui_font_cap12 : &ui_font_sm12;
+    lv_obj_t *l = mk_label(t, f, 0, 0, g ? "GOFA" : "waze");
+    lv_obj_set_style_text_color(l, g ? lv_color_white() : lv_color_hex(0x05263A), 0);
+    lv_obj_center(l);
+    return t;
+}
 
 void ui_set_beep_hook(void (*cb)(int)) { beep_cb = cb; }
 void ui_set_sound_hook(void (*cb)(bool, int)) { sound_cb = cb; }
@@ -916,7 +1057,7 @@ static void render_standby(void)
     else if (wday >= 0) snprintf(b, sizeof b, "%s", WDAY_NAME[wday % 7]);
     else snprintf(b, sizeof b, "Chờ giờ từ điện thoại");
     lv_label_set_text(lbl_date, b);
-    lv_label_set_text(lbl_sb_stat, phone ? "Đã kết nối điện thoại" : "Chờ kết nối Waze qua điện thoại");
+    lv_label_set_text(lbl_sb_stat, phone ? "Đã kết nối điện thoại" : src == UI_SRC_GOFA ? "Chờ kết nối GOFA qua điện thoại" : "Chờ kết nối Waze qua điện thoại");
     lv_obj_set_style_text_color(lbl_sb_stat, th->accent, 0);
     lv_obj_set_style_text_opa(lbl_sb_stat, phone ? LV_OPA_COVER : LV_OPA_80, 0);
     const char *g = phone ? "GPS sẵn sàng" : (clk_h >= 0 && !clk_synced) ? "Giờ chưa chỉnh" : "Chưa có GPS";
@@ -927,7 +1068,7 @@ static void render_standby(void)
 /* Man chao: logo EVCarHUD (ui_logo.c, tao boi tools/logo/gen_logo.py) tren nen toi, hien dan ra; dong duoi: phien ban. */
 extern const lv_image_dsc_t ui_logo;
 
-lv_obj_t *ui_splash_create(const char *version)
+lv_obj_t *ui_splash_create(const char *version, int source)
 {
     lv_obj_t *scr = lv_obj_create(NULL);
     lv_obj_remove_flag(scr, LV_OBJ_FLAG_SCROLLABLE);
@@ -935,8 +1076,24 @@ lv_obj_t *ui_splash_create(const char *version)
     lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, 0);
     lv_obj_t *img = lv_image_create(scr);
     lv_image_set_src(img, &ui_logo);
-    lv_obj_align(img, LV_ALIGN_CENTER, 0, -10);
+    lv_obj_align(img, LV_ALIGN_CENTER, 0, -36);
     lv_obj_fade_in(img, 500, 0);
+    /* "KET NOI VOI" + logo doi tac (Waze Mod mac dinh / GOFA) */
+    lv_obj_t *cap = lv_label_create(scr);
+    lv_obj_set_style_text_font(cap, &ui_font_cap12, 0);
+    lv_obj_set_style_text_color(cap, lv_color_hex(0x8AA0B4), 0);
+    lv_obj_set_style_text_letter_space(cap, 1, 0);
+    lv_label_set_text(cap, "KẾT NỐI VỚI");
+    lv_obj_align(cap, LV_ALIGN_CENTER, 0, 14);
+    bool g = source == UI_SRC_GOFA;
+    const char *nm = g ? "GOFA" : "Waze Mod";
+    int tw = 36 + 8 + text_w(nm, &ui_font_txt16), x0 = (UI_W - tw) / 2;
+    lv_obj_t *tile = ui_partner_tile(scr, source, 36);
+    lv_obj_set_pos(tile, x0, 146);
+    lv_obj_t *n = mk_label(scr, &ui_font_txt16, x0 + 44, 146 + (36 - ui_font_txt16.line_height) / 2, nm);
+    lv_obj_set_style_text_color(n, lv_color_white(), 0);
+    lv_obj_fade_in(tile, 500, 200);
+    lv_obj_fade_in(n, 500, 200);
     lv_obj_t *v = lv_label_create(scr);
     lv_obj_set_style_text_font(v, &ui_font_sm12, 0);
     lv_obj_set_style_text_color(v, lv_color_hex(0x9CA3AF), 0);

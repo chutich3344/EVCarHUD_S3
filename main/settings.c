@@ -36,6 +36,9 @@ void settings_set_sound(bool on) { set_u8("snd", on ? 1 : 0); }
 int settings_get_volume(void) { int v = get_u8("vol", 70); return v < 10 ? 10 : v > 100 ? 100 : v; }
 void settings_set_volume(int v) { set_u8("vol", v); }
 
+int settings_get_source(void) { return get_u8("src", 0) == 1 ? 1 : 0; }
+void settings_set_source(int s) { set_u8("src", s == 1 ? 1 : 0); }
+
 /* Gio lan cuoi lay tu dien thoai (giay UTC + mui gio phut): board khong co pin giu gio, bat may lai thi chay tiep tu day */
 bool settings_get_clock(int64_t *unix_s, int *tz_min)
 {

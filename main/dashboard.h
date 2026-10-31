@@ -36,7 +36,9 @@ enum { UI_LEVEL_OK = 0, UI_LEVEL_NEAR = 1, UI_LEVEL_OVER = 2 };   /* toc do so v
 
 void dashboard_create(lv_obj_t *screen);
 lv_obj_t *ui_screen(void);                               /* man bang dieu khien (dashboard_create) */
-lv_obj_t *ui_splash_create(const char *version);         /* man chao logo luc khoi dong (chua nap, goi lv_screen_load) */
+enum { UI_SRC_WAZE = 0, UI_SRC_GOFA = 1 };              /* nguon du lieu dan duong (chon trong cai dat > Ket noi) */
+lv_obj_t *ui_splash_create(const char *version, int source);   /* man chao: logo + "Ket noi voi" Waze/GOFA (chua nap) */
+lv_obj_t *ui_partner_tile(lv_obj_t *parent, int source, int size);   /* o logo Waze / GOFA */
 
 /* --- toc do / dong ho --- */
 void ui_set_speed(int kmh);
@@ -75,6 +77,10 @@ void ui_toast(const char *text);
  * Tieng tit theo trang thai: 1 tieng khi co canh bao moi (camera, canh sat...) va khi con 100 m toi cho re;
  * 2 tieng khi vuot toc do (nhac lai moi 8 giay neu van vuot). Giu tay 5 giay tren man hinh: man cai dat am luong. */
 void ui_open_settings(void);                           /* mo man cai dat am luong (giu tay 5 giay) */
+void ui_open_settings_page(int page);                  /* 0 = Am thanh, 1 = Ket noi */
+void ui_set_source(int source);                        /* nguon da luu (NVS), UI_SRC_* */
+void ui_set_source_hook(void (*cb)(int source));       /* nguoi dung doi nguon (sau 3 giay): luu NVS + khoi dong lai */
+void ui_test_switch(int source);                       /* chi de chup anh xem truoc: man dem khoi dong lai */
 void ui_set_sound(bool on, int volume);                /* gia tri da luu (NVS), volume 10..100 */
 void ui_set_beep_hook(void (*cb)(int times));          /* giao dien muon phat n tieng tit */
 void ui_set_sound_hook(void (*cb)(bool on, int volume)); /* nguoi dung doi am luong: board dat loa + luu NVS */                       /* thong bao nho 2 giay o giua man hinh */

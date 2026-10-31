@@ -105,7 +105,7 @@ static void enter(int k)
     if (S->kind == K_LOGO) {
         hlp_dash_on_disconnect();
         dash_scr = ui_screen();
-        lv_screen_load(ui_splash_create(""));
+        lv_screen_load(ui_splash_create("", UI_SRC_WAZE));
         return;
     }
     if (k > 0 && STEPS[k - 1].kind == K_LOGO) {
