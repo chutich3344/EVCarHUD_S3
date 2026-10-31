@@ -19,6 +19,11 @@ void hlp_dash_on_connect(void);                   /* transport vua noi: gui `dev
 void hlp_dash_on_disconnect(void);                /* transport mat: hien NO SIGNAL */
 void hlp_dash_feed(const uint8_t *data, size_t len);   /* byte nhan duoc, chunk bat ky */
 
+/* Board khong co pin giu gio: luc bat may cho dong ho chay tu gio uoc tinh (gio da luu / gio build), dien thoai
+ * gui `hi` thi chinh lai. Hook duoc goi moi phut khi gio da chinh theo dien thoai (de luu lai). */
+void hlp_dash_set_clock_guess(int64_t unix_s, int tz_min);
+void hlp_dash_set_clock_hook(void (*cb)(int64_t unix_s, int tz_min));
+
 #ifdef __cplusplus
 }
 #endif

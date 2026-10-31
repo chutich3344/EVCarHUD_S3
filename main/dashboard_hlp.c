@@ -24,6 +24,8 @@ static int64_t clock_unix;            /* giay UTC tai thoi diem clock_tick */
 static int clock_tz;                  /* phut */
 static uint32_t clock_tick;
 static int shown_minute = -1;
+static bool clock_synced;             /* gio da chinh theo dien thoai (khong phai gio uoc tinh) */
+static void (*clock_hook)(int64_t, int);
 
 static lv_timer_t *watch_tmr;
 #define WAZE_HOLD_MS 5000             /* mat du lieu Waze (ten duong, gioi han, canh bao) qua 5 s: coi nhu chi con GPS */
@@ -179,6 +181,8 @@ static void on_line(const char *line, size_t len, void *user)
             clock_tz = m.hi.tz;
             clock_tick = lv_tick_get();
             shown_minute = -1;
+            clock_synced = true;
+            ui_set_clock_synced(true);
         }
         break;
     case HLP_MSG_PING:
@@ -226,6 +230,7 @@ static void watch_cb(lv_timer_t *t)
         int minute = (int)((now / 60) % 1440);
         if (minute != shown_minute) {
             shown_minute = minute;
+            if (clock_synced && clock_hook) clock_hook(now - (int64_t)clock_tz * 60, clock_tz);
             int64_t days = now / 86400;
             int wday = (int)((days + 4) % 7);              /* 1/1/1970 la thu nam; 0 = Chu nhat */
             ui_set_time(minute / 60, minute % 60, wday);
@@ -236,6 +241,20 @@ static void watch_cb(lv_timer_t *t)
     }
 }
 
+void hlp_dash_set_clock_guess(int64_t unix_s, int tz_min)
+{
+    if (clock_synced) return;
+    has_clock = true;
+    clock_unix = unix_s;
+    clock_tz = tz_min;
+    clock_tick = lv_tick_get();
+    shown_minute = -1;
+    ui_set_clock_synced(false);
+    watch_cb(NULL);
+}
+
+void hlp_dash_set_clock_hook(void (*cb)(int64_t, int)) { clock_hook = cb; }
+
 void hlp_dash_init(hlp_tx_cb_t tx, void *user)
 {
     tx_cb = tx;
@@ -244,6 +263,7 @@ void hlp_dash_init(hlp_tx_cb_t tx, void *user)
     cur_sess = -1;
     have_ts = false;
     has_clock = false;
+    clock_synced = false;
     have_state = false;
     gps_level = -1;
     signal_ok = true;                                /* de set_signal(false) ben duoi chay that */

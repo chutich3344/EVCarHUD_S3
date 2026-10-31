@@ -28,5 +28,31 @@ bool settings_get_demo(void) { return get_u8("demo", 0) != 0; }
 void settings_set_demo(bool on) { set_u8("demo", on ? 1 : 0); }
 bool settings_get_lcd_alt(void) { return get_u8("lcd", 0) != 0; }
 void settings_set_lcd_alt(bool on) { set_u8("lcd", on ? 1 : 0); }
-bool settings_get_rotated(void) { return get_u8("rot", 0) != 0; }
+bool settings_get_rotated(void) { return get_u8("rot", 1) != 0; }   /* mac dinh xoay 180 do: dung chieu khi lap trong vo */
 void settings_set_rotated(bool on) { set_u8("rot", on ? 1 : 0); }
+
+/* Gio lan cuoi lay tu dien thoai (giay UTC + mui gio phut): board khong co pin giu gio, bat may lai thi chay tiep tu day */
+bool settings_get_clock(int64_t *unix_s, int *tz_min)
+{
+    nvs_handle_t h;
+    int64_t t = 0;
+    int16_t tz = 0;
+    if (nvs_open(NS, NVS_READONLY, &h) != ESP_OK) return false;
+    bool ok = nvs_get_i64(h, "clk", &t) == ESP_OK && nvs_get_i16(h, "tz", &tz) == ESP_OK && t > 0;
+    nvs_close(h);
+    if (ok) {
+        *unix_s = t;
+        *tz_min = tz;
+    }
+    return ok;
+}
+
+void settings_set_clock(int64_t unix_s, int tz_min)
+{
+    nvs_handle_t h;
+    if (nvs_open(NS, NVS_READWRITE, &h) != ESP_OK) return;
+    nvs_set_i64(h, "clk", unix_s);
+    nvs_set_i16(h, "tz", (int16_t)tz_min);
+    nvs_commit(h);
+    nvs_close(h);
+}

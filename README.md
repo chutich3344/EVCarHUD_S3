@@ -5,7 +5,7 @@ Firmware HUD cho board "Cheap Yellow Display" ESP32-2432S028 (ESP32-WROOM, màn 
 
 ![Giao diện](docs/giao-dien.png)
 
-- **Màn chờ** (chưa có dữ liệu, hoặc đứng yên 30 giây khi không dẫn đường): chưa kết nối điện thoại thì là đồng hồ điện tử 24 giờ (HH:MM, dấu ":" nhấp nháy), đã kết nối thì là đồng hồ lật; kèm ngày tháng và dòng "Chờ kết nối Waze qua điện thoại" hoặc "Đã kết nối điện thoại". Board không có pin giữ giờ: mới cắm điện thì đồng hồ hiện "--:--" cho tới lần đầu điện thoại kết nối, sau đó tự chạy tiếp kể cả khi mất kết nối.
+- **Màn chờ** (chưa có dữ liệu, hoặc đứng yên 30 giây khi không dẫn đường): chưa kết nối điện thoại thì là đồng hồ điện tử 24 giờ (HH:MM, dấu ":" nhấp nháy), đã kết nối thì là đồng hồ lật; kèm ngày tháng và dòng "Chờ kết nối Waze qua điện thoại" hoặc "Đã kết nối điện thoại". Board không có pin giữ giờ: đồng hồ chạy tiếp từ giờ đã lưu lần trước (mới nạp firmware thì từ giờ build), góc dưới ghi "Giờ chưa chỉnh"; điện thoại kết nối là giờ được chỉnh đúng và lưu lại 10 phút/lần.
 - **Chạy thường** (đang chạy, chưa đặt lộ trình): tốc độ số lớn bên trái, biển giới hạn + biển báo bên phải, cảnh báo và lời nhắc ở dưới. Chưa mở Waze (chỉ có tốc độ GPS): biển giới hạn hiện "-", thẻ cảnh báo "Đường thoáng".
 - **Dẫn đường**: thẻ rẽ ở trên, tốc độ và biển báo ở giữa, cảnh báo và giờ đến ở dưới.
 - Thẻ dẫn đường: mũi tên rẽ, khoảng cách, kiểu rẽ, tên đường, thẻ "Tiếp theo".
@@ -14,7 +14,7 @@ Firmware HUD cho board "Cheap Yellow Display" ESP32-2432S028 (ESP32-WROOM, màn 
 - Cảnh báo gần nhất (cảnh sát, camera, tai nạn, kẹt xe...) và giờ đến, quãng đường còn lại.
 - Khởi động: hiện logo EVCarHUD 3 giây (kèm phiên bản) rồi vào màn hình dẫn đường.
 - Ban ngày / Ban đêm: chạm màn hình hoặc bấm BOOT để đổi Tự động → Ngày → Đêm (tự động theo giờ điện thoại, 6:00–18:00 là ngày).
-- **Xoay màn hình 180°**: giữ tay trên màn hình 1 giây, hoặc bấm nút BOOT 2 lần liên tiếp (dùng khi lắp board ngược trong vỏ). Board nhớ hướng cho lần sau.
+- **Xoay màn hình 180°** (mặc định đã xoay sẵn cho đúng chiều khi lắp trong vỏ): giữ tay trên màn hình 1 giây, hoặc bấm nút BOOT 2 lần liên tiếp (dùng khi lắp board ngược trong vỏ). Board nhớ hướng cho lần sau.
 
 ## 1. Cài ESP-IDF (một lần)
 

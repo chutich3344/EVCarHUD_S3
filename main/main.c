@@ -2,6 +2,7 @@
  * dien thoai chay Waze Mod gui du lieu dan duong (HLP/1) qua Bluetooth LE -> giai ma -> giao dien the 320x240.
  * Giu BOOT 3 giay: bat/tat che do trinh dien (du lieu gia, khong can dien thoai). */
 #include <stdio.h>
+#include <string.h>
 #include "sdkconfig.h"
 #include "driver/gpio.h"
 #include "esp_app_desc.h"
@@ -16,6 +17,7 @@
 #include "board.h"
 #include "buttons.h"
 #include "dashboard.h"
+#include "dashboard_hlp.h"
 #include "demo.h"
 #include "link.h"
 #include "settings.h"
@@ -27,6 +29,34 @@ static const char *TAG = "evcarhud";
 static void on_night(bool night) { board_set_backlight(night ? CONFIG_EVCARHUD_BL_NIGHT : CONFIG_EVCARHUD_BL_DAY); }
 
 static void on_mode(int mode) { settings_set_mode(mode); }
+
+/* Gio theo dien thoai: luu 10 phut/lan (va lan dau) de lan bat may sau dong ho chay tiep ngay, khong phai "--:--" */
+static void on_clock(int64_t unix_s, int tz_min)
+{
+    static int64_t saved;
+    if (saved && unix_s - saved < 600) return;
+    saved = unix_s;
+    settings_set_clock(unix_s, tz_min);
+}
+
+/* Gio luc build (__DATE__ __TIME__, may build tren GitHub dung gio UTC) -> giay UTC: dung khi chua tung co gio */
+static int64_t build_unix(void)
+{
+    static const char MON[] = "JanFebMarAprMayJunJulAugSepOctNovDec";
+    char m[4] = {0};
+    int d = 1, y = 2026, hh = 0, mm = 0, ss = 0;
+    sscanf(__DATE__, "%3s %d %d", m, &d, &y);
+    sscanf(__TIME__, "%d:%d:%d", &hh, &mm, &ss);
+    const char *p = strstr(MON, m);
+    int mo = p ? (int)(p - MON) / 3 + 1 : 1;
+    /* days_from_civil (H. Hinnant) */
+    y -= mo <= 2;
+    int era = y / 400, yoe = y - era * 400;
+    int doy = (153 * (mo + (mo > 2 ? -3 : 9)) + 2) / 5 + d - 1;
+    int doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+    int64_t days = (int64_t)era * 146097 + doe - 719468;
+    return days * 86400 + hh * 3600 + mm * 60 + ss;
+}
 
 static void on_rotate(void)                                 /* giu tay tren man hinh: xoay 180 do va nho lai */
 {
@@ -164,6 +194,16 @@ void app_main(void)
     ui_set_level_hook(on_level);
     ui_set_rotate_hook(on_rotate);
     link_init();                                             /* bo giai ma HLP + chon duong truyen */
+    {
+        int64_t t;
+        int tz;
+        if (!settings_get_clock(&t, &tz)) {                  /* moi nap firmware (NVS da xoa): lay gio build, mui gio VN */
+            t = build_unix();
+            tz = 7 * 60;
+        }
+        hlp_dash_set_clock_guess(t, tz);                     /* dong ho chay ngay; dien thoai noi se chinh lai */
+        if (!demo) hlp_dash_set_clock_hook(on_clock);        /* trinh dien dung gio gia: khong luu */
+    }
     if (demo) {
         demo_start();
         ui_toast("Trình diễn (giữ BOOT 3 giây để tắt)");

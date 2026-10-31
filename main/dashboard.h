@@ -43,7 +43,8 @@ void ui_set_speed(int kmh);
 void ui_set_speed_limit(int kmh);                 /* 0 = chua biet: an bien, khong canh bao */
 void ui_set_time(int hour, int minute, int wday); /* wday: 0 = Chu nhat ... 6 = Thu bay, -1 = chua biet */
 int ui_get_speed(void);
-void ui_set_date(int day, int month);             /* ngay 1..31, thang 1..12 (man cho) */
+void ui_set_date(int day, int month);
+void ui_set_clock_synced(bool synced);            /* false: gio uoc tinh (chua chinh theo dien thoai) */             /* ngay 1..31, thang 1..12 (man cho) */
 bool ui_get_clock(int *h, int *m);                /* false: chua co gio tu dien thoai */
 
 /* --- du lieu dan duong (Waze HLP) --- */

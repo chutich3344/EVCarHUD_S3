@@ -99,7 +99,7 @@ static int speed = -2, limit = -1, level = -1;
 static bool nav_on, has_alert, has_route;
 static int clk_h = -1, clk_m = -1, day = -1, month = -1, wday = -1;
 static int screen = -1;
-static bool sig_ok, phone, waze = true, moving;
+static bool sig_ok, phone, waze = true, moving, clk_synced;
 static uint32_t stop_tick;                  /* 0: khong dung yen */
 static ui_alert_t al_list[4];               /* canh bao vua nhan: ve lai khi doi man (the doi kich thuoc) */
 static int al_n, ev_code;                   /* ev_code: ma su kien gan nhat, 0 = khong co */
@@ -650,7 +650,8 @@ static void render_standby(void)
     lv_label_set_text(lbl_sb_stat, phone ? "Đã kết nối điện thoại" : "Chờ kết nối Waze qua điện thoại");
     lv_obj_set_style_text_color(lbl_sb_stat, th->accent, 0);
     lv_obj_set_style_text_opa(lbl_sb_stat, phone ? LV_OPA_COVER : LV_OPA_80, 0);
-    lv_label_set_text(lbl_gps, phone ? "GPS sẵn sàng" : "Chưa có GPS");
+    const char *g = phone ? "GPS sẵn sàng" : (clk_h >= 0 && !clk_synced) ? "Giờ chưa chỉnh" : "Chưa có GPS";
+    lv_label_set_text(lbl_gps, g);
     lv_obj_set_style_text_color(lbl_gps, phone ? th->accent : th->mut, 0);
 }
 
@@ -840,6 +841,12 @@ void ui_set_time(int hour, int minute, int wd)
     if (screen != SCR_NAV || !has_route) render_eta();
     render_standby();
     update_night();
+}
+
+void ui_set_clock_synced(bool synced)
+{
+    clk_synced = synced;
+    render_standby();
 }
 
 void ui_set_date(int d, int m)
