@@ -112,6 +112,20 @@ static void (*mode_cb)(int);
 static void (*night_cb)(bool);
 static void (*level_cb)(int);
 static void (*rotate_cb)(void);
+/* loa */
+static bool snd_on = true;
+static int snd_vol = 70;
+static bool turn_beeped;                    /* da tit bao con 100 m toi cho re */
+static void (*beep_cb)(int);
+static void (*sound_cb)(bool, int);
+static lv_timer_t *over_tmr;                /* nhac lai 2 tieng tit khi van vuot toc do */
+/* cham man hinh: giu 1 giay roi tha = xoay, giu 5 giay = cai dat */
+static uint32_t press_tick;
+static bool hold_used;
+/* man cai dat am luong */
+static lv_obj_t *set_scr, *set_toggle, *set_spk_cone, *set_arc[2], *set_x[2], *lbl_set_onoff;
+static lv_obj_t *set_minus, *set_plus, *lbl_set_vol, *vol_bar, *vol_bar_fill;
+static lv_timer_t *set_tmr;
 
 /* ======================= tien ich ======================= */
 static lv_obj_t *mk_box(lv_obj_t *p, int x, int y, int w, int h)
@@ -217,7 +231,13 @@ static void set_bar(lv_obj_t *track, lv_obj_t *fill, int permille)
     show(fill, fw > 0);
 }
 
+static void beep(int times)
+{
+    if (snd_on && beep_cb) beep_cb(times);
+}
+
 static void render_all(void);
+static void settings_render(void);
 static void render_standby(void);
 
 /* ======================= mau sac ======================= */
@@ -265,6 +285,7 @@ static void apply_theme(void)
     lv_obj_set_style_bg_color(toast, th->fg, 0);
     lv_obj_set_style_text_color(lbl_toast, th->bg, 0);
     lv_obj_set_style_border_color(frame, th->over, 0);
+    if (set_scr && shown(set_scr)) settings_render();
     render_all();
     render_standby();
 }
@@ -481,6 +502,7 @@ static void render_all(void)
     else render_cruise();
     lv_obj_move_foreground(band);
     lv_obj_move_foreground(frame);
+    if (set_scr && shown(set_scr)) lv_obj_move_foreground(set_scr);
     lv_obj_move_foreground(toast);
 }
 
@@ -503,6 +525,7 @@ static void set_screen(int s)
         lv_obj_move_foreground(stby);
         render_standby();
     }
+    if (shown(set_scr)) lv_obj_move_foreground(set_scr);
     lv_obj_move_foreground(toast);
 }
 
@@ -535,6 +558,13 @@ static void update_level(void)
             lv_timer_pause(blink_tmr);
             show(frame, false);
         }
+        if (lv == UI_LEVEL_OVER) {                                 /* vuot toc do: tit tit, nhac lai moi 8 giay */
+            beep(2);
+            lv_timer_reset(over_tmr);
+            lv_timer_resume(over_tmr);
+        } else {
+            lv_timer_pause(over_tmr);
+        }
         if (level_cb) level_cb(lv);
     }
     render_all();
@@ -561,8 +591,11 @@ void ui_toast(const char *text)
 static void on_click(lv_event_t *e)
 {
     (void)e;
+    if (hold_used) return;
     ui_cycle_mode();
 }
+
+static void settings_open(void);
 
 void ui_rotate(void)
 {
@@ -571,11 +604,190 @@ void ui_rotate(void)
     ui_toast("Đã xoay màn hình");
 }
 
-static void on_long_press(lv_event_t *e)
+/* Giu tay: 1 giay hien goi y, tha ra thi xoay 180 do; giu du 5 giay thi mo cai dat am luong (khong xoay). */
+static void on_press(lv_event_t *e)
 {
-    (void)e;
-    ui_rotate();
+    lv_event_code_t c = lv_event_get_code(e);
+    if (c == LV_EVENT_PRESSED) {
+        press_tick = lv_tick_get();
+        hold_used = false;
+    } else if (c == LV_EVENT_LONG_PRESSED) {
+        ui_toast("Thả tay: xoay · Giữ 5 giây: âm lượng");
+    } else if (c == LV_EVENT_LONG_PRESSED_REPEAT) {
+        if (!hold_used && lv_tick_elaps(press_tick) >= 5000) {
+            hold_used = true;
+            show(toast, false);
+            settings_open();
+        }
+    } else if (c == LV_EVENT_RELEASED) {
+        if (!hold_used && lv_tick_elaps(press_tick) >= 1000) {
+            hold_used = true;                                      /* khong doi Ngay/Dem */
+            show(toast, false);
+            ui_rotate();
+        }
+    }
 }
+
+static void over_cb(lv_timer_t *t)
+{
+    (void)t;
+    if (level == UI_LEVEL_OVER) beep(2);
+}
+
+/* ======================= cai dat am luong =======================
+ * Cam ung chua hieu chinh toa do nen nut rat to: hang tren bat / tat loa, hang duoi "-" so "+".
+ * Khong cham gi 8 giay: tu dong dong va luu. */
+static void settings_render(void)
+{
+    lv_obj_set_style_bg_color(set_scr, th->bg, 0);
+    lv_color_t on_c = th->ok;
+    lv_obj_set_style_bg_color(set_toggle, snd_on ? on_c : th->card, 0);
+    lv_obj_set_style_border_color(set_toggle, snd_on ? on_c : th->border, 0);
+    lv_color_t ink = snd_on ? lv_color_white() : th->mut;
+    lv_obj_set_style_line_color(set_spk_cone, ink, 0);
+    for (int i = 0; i < 2; i++) {
+        lv_obj_set_style_arc_color(set_arc[i], ink, LV_PART_INDICATOR);
+        show(set_arc[i], snd_on);
+        lv_obj_set_style_line_color(set_x[i], ink, 0);
+        show(set_x[i], !snd_on);
+    }
+    lv_label_set_text(lbl_set_onoff, snd_on ? "ON" : "OFF");
+    lv_obj_set_style_text_color(lbl_set_onoff, ink, 0);
+
+    lv_obj_t *ctl[] = {set_minus, set_plus, lbl_set_vol, vol_bar};
+    for (size_t i = 0; i < sizeof ctl / sizeof ctl[0]; i++) show(ctl[i], snd_on);   /* tat loa: an phan chinh am */
+    lv_label_set_text_fmt(lbl_set_vol, "%d", snd_vol);
+    lv_obj_set_style_text_color(lbl_set_vol, th->fg, 0);
+    lv_obj_t *btn[] = {set_minus, set_plus};
+    for (int i = 0; i < 2; i++) {
+        lv_obj_set_style_bg_color(btn[i], th->card, 0);
+        lv_obj_set_style_border_color(btn[i], th->border, 0);
+        for (uint32_t k = 0; k < lv_obj_get_child_count(btn[i]); k++) lv_obj_set_style_bg_color(lv_obj_get_child(btn[i], k), th->fg, 0);
+    }
+    lv_obj_set_style_bg_color(vol_bar, th->track, 0);
+    lv_obj_set_style_bg_color(vol_bar_fill, th->ok, 0);
+    set_bar(vol_bar, vol_bar_fill, snd_vol * 10);
+}
+
+static void settings_close(void)
+{
+    lv_timer_pause(set_tmr);
+    show(set_scr, false);
+    ui_toast(snd_on ? "Đã lưu âm lượng" : "Đã tắt tiếng");
+}
+
+static void set_tmr_cb(lv_timer_t *t)
+{
+    (void)t;
+    settings_close();
+}
+
+static void settings_changed(void)
+{
+    lv_timer_reset(set_tmr);
+    if (sound_cb) sound_cb(snd_on, snd_vol);
+    settings_render();
+    beep(1);                                                       /* nghe thu muc am moi */
+}
+
+static void on_set_btn(lv_event_t *e)
+{
+    lv_obj_t *o = lv_event_get_target(e);
+    if (o == set_toggle) snd_on = !snd_on;
+    else if (o == set_minus) snd_vol = snd_vol > 10 ? snd_vol - 10 : 10;
+    else if (o == set_plus) snd_vol = snd_vol < 100 ? snd_vol + 10 : 100;
+    else { lv_timer_reset(set_tmr); return; }                     /* cham nen: chi giu man mo */
+    settings_changed();
+}
+
+static lv_obj_t *mk_bar_line(lv_obj_t *p, int x, int y, int w, int h)
+{
+    lv_obj_t *o = mk_fill(p, x, y, w, h, h / 2);
+    return o;
+}
+
+static void build_settings(void)
+{
+    set_scr = mk_box(scr, 0, 0, UI_W, UI_H);
+    lv_obj_set_style_bg_opa(set_scr, LV_OPA_COVER, 0);
+    lv_obj_add_flag(set_scr, LV_OBJ_FLAG_CLICKABLE);              /* cham nen khong doi Ngay/Dem */
+    lv_obj_add_event_cb(set_scr, on_set_btn, LV_EVENT_CLICKED, NULL);
+
+    /* hang tren: loa ON / OFF */
+    set_toggle = mk_card(set_scr, 12, 12, UI_W - 24, 92, 18);
+    lv_obj_add_flag(set_toggle, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_add_event_cb(set_toggle, on_set_btn, LV_EVENT_CLICKED, NULL);
+    int ix = 92, iy = 46 - 1;                                     /* tam icon loa trong nut */
+    lv_obj_t *body = mk_fill(set_toggle, ix - 22, iy - 9, 12, 18, 2);
+    lv_obj_add_flag(body, LV_OBJ_FLAG_EVENT_BUBBLE);
+    static lv_point_precise_t cone[] = {{0, 9}, {12, 0}, {12, 36}, {0, 27}, {0, 9}};
+    set_spk_cone = lv_line_create(set_toggle);
+    lv_line_set_points(set_spk_cone, cone, 5);
+    lv_obj_set_pos(set_spk_cone, ix - 12, iy - 18);
+    lv_obj_set_style_line_width(set_spk_cone, 6, 0);
+    lv_obj_set_style_line_rounded(set_spk_cone, true, 0);
+    for (int i = 0; i < 2; i++) {
+        int r = 14 + i * 11;
+        set_arc[i] = lv_arc_create(set_toggle);
+        lv_obj_remove_style_all(set_arc[i]);
+        lv_obj_set_size(set_arc[i], 2 * r, 2 * r);
+        lv_obj_set_pos(set_arc[i], ix + 2 - r, iy - r);
+        lv_arc_set_bg_angles(set_arc[i], 0, 0);
+        lv_arc_set_angles(set_arc[i], 315, 45);
+        lv_obj_set_style_arc_width(set_arc[i], 4, LV_PART_INDICATOR);
+        lv_obj_set_style_arc_rounded(set_arc[i], true, LV_PART_INDICATOR);
+        lv_obj_set_style_arc_opa(set_arc[i], LV_OPA_COVER, LV_PART_INDICATOR);
+        lv_obj_remove_flag(set_arc[i], LV_OBJ_FLAG_CLICKABLE);
+        static lv_point_precise_t xs[2][2] = {{{0, 0}, {18, 18}}, {{0, 18}, {18, 0}}};
+        set_x[i] = lv_line_create(set_toggle);
+        lv_line_set_points(set_x[i], xs[i], 2);
+        lv_obj_set_pos(set_x[i], ix + 8, iy - 9);
+        lv_obj_set_style_line_width(set_x[i], 5, 0);
+        lv_obj_set_style_line_rounded(set_x[i], true, 0);
+    }
+    lbl_set_onoff = mk_label(set_toggle, &ui_font_onoff44, ix + 48, iy - baseline(&ui_font_onoff44) / 2, "ON");
+
+    /* hang duoi: [ - ]  50  [ + ] */
+    int by = 116, bh = UI_H - by - 12, bw = 96;
+    set_minus = mk_card(set_scr, 12, by, bw, bh, 18);
+    set_plus = mk_card(set_scr, UI_W - 12 - bw, by, bw, bh, 18);
+    lv_obj_t *bt[] = {set_minus, set_plus};
+    for (int i = 0; i < 2; i++) {
+        lv_obj_add_flag(bt[i], LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_add_event_cb(bt[i], on_set_btn, LV_EVENT_CLICKED, NULL);
+        lv_obj_t *h = mk_bar_line(bt[i], (bw - 2 - 40) / 2, (bh - 2 - 8) / 2, 40, 8);   /* dau "-" ve bang khoi */
+        (void)h;
+        if (i == 1) mk_bar_line(bt[i], (bw - 2 - 8) / 2, (bh - 2 - 40) / 2, 8, 40);       /* them gach doc: "+" */
+    }
+    int mx = 12 + bw + 8, mw = UI_W - 2 * mx;
+    lbl_set_vol = mk_label_w(set_scr, &ui_font_num54, mx, by + (bh - baseline(&ui_font_num54)) / 2 - 8, mw, LV_TEXT_ALIGN_CENTER);
+    vol_bar = mk_fill(set_scr, mx + 8, by + bh - 22, mw - 16, 8, 4);
+    vol_bar_fill = mk_fill(vol_bar, 0, 0, 0, 8, 4);
+    show(set_scr, false);
+    set_tmr = lv_timer_create(set_tmr_cb, 8000, NULL);
+    lv_timer_pause(set_tmr);
+}
+
+static void settings_open(void)
+{
+    settings_render();
+    show(set_scr, true);
+    lv_obj_move_foreground(set_scr);
+    lv_obj_move_foreground(toast);
+    lv_timer_reset(set_tmr);
+    lv_timer_resume(set_tmr);
+}
+
+void ui_set_sound(bool on, int volume)
+{
+    snd_on = on;
+    snd_vol = volume < 10 ? 10 : volume > 100 ? 100 : volume / 10 * 10;
+}
+
+void ui_open_settings(void) { settings_open(); }
+
+void ui_set_beep_hook(void (*cb)(int)) { beep_cb = cb; }
+void ui_set_sound_hook(void (*cb)(bool, int)) { sound_cb = cb; }
 
 /* ======================= dung giao dien ======================= */
 static void build_nav(void)
@@ -738,8 +950,11 @@ void dashboard_create(lv_obj_t *screen_obj)
 {
     scr = screen_obj;
     lv_obj_remove_flag(scr, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_add_event_cb(scr, on_click, LV_EVENT_SHORT_CLICKED, NULL);   /* cham: Ngay/Dem; giu 1 giay: xoay */
-    lv_obj_add_event_cb(scr, on_long_press, LV_EVENT_LONG_PRESSED, NULL);
+    lv_obj_add_event_cb(scr, on_click, LV_EVENT_SHORT_CLICKED, NULL);   /* cham: Ngay/Dem; giu 1 giay: xoay; 5 giay: am luong */
+    lv_obj_add_event_cb(scr, on_press, LV_EVENT_PRESSED, NULL);
+    lv_obj_add_event_cb(scr, on_press, LV_EVENT_LONG_PRESSED, NULL);
+    lv_obj_add_event_cb(scr, on_press, LV_EVENT_LONG_PRESSED_REPEAT, NULL);
+    lv_obj_add_event_cb(scr, on_press, LV_EVENT_RELEASED, NULL);
 
     build_nav();
     build_cruise();
@@ -754,6 +969,9 @@ void dashboard_create(lv_obj_t *screen_obj)
     show(frame, false);
     blink_tmr = lv_timer_create(blink_cb, 400, NULL);
     lv_timer_pause(blink_tmr);
+    over_tmr = lv_timer_create(over_cb, 8000, NULL);
+    lv_timer_pause(over_tmr);
+    build_settings();
 
     /* thong bao nho */
     toast = mk_box(scr, 24, 102, UI_W - 48, 36);
@@ -843,7 +1061,14 @@ void ui_set_nav(bool active, int turn, int dist_m, int exit_n, const char *stree
         snprintf(street_now, sizeof street_now, "%s", street);
     } else {
         /* thanh tien do: tinh tu luc thay luot re moi (doi huong, doi duong, hoac khoang cach tang lai) */
-        if (turn != turn_now || strcmp(street, street_nav) != 0 || dist_m > turn_start) turn_start = dist_m;
+        if (turn != turn_now || strcmp(street, street_nav) != 0 || dist_m > turn_start) {
+            turn_start = dist_m;
+            turn_beeped = false;
+        }
+        if (!turn_beeped && dist_m >= 0 && dist_m <= 100 && turn_start > 150) {   /* con 100 m toi cho re: tit */
+            turn_beeped = true;
+            beep(1);
+        }
         turn_now = turn;
         dist_now = dist_m;
         snprintf(street_nav, sizeof street_nav, "%s", street);
@@ -883,6 +1108,7 @@ void ui_set_alerts(const ui_alert_t *alerts, int n)
         }
     }
     int code = ev_now ? ev_now->code : 0;
+    if (code && code != ev_code) beep(1);                          /* canh bao moi: tit */
     if (ev_now && (code != ev_code || ev_now->dist > ev_start)) ev_start = ev_now->dist;
     ev_code = code;
     render_all();

@@ -13,3 +13,7 @@ bool settings_get_rotated(void);      /* xoay giao dien 180 do (giu tay tren man
 void settings_set_rotated(bool on);
 bool settings_get_clock(int64_t *unix_s, int *tz_min);   /* gio da luu lan cuoi (false: chua co) */
 void settings_set_clock(int64_t unix_s, int tz_min);
+bool settings_get_sound(void);        /* loa bat (mac dinh: co) */
+void settings_set_sound(bool on);
+int settings_get_volume(void);        /* am luong 10..100 (mac dinh 70) */
+void settings_set_volume(int v);

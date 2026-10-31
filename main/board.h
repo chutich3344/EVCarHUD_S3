@@ -12,5 +12,6 @@ bool board_get_rotated(void);
 const char *board_lcd_name(void);            /* chip man hinh dang dung: "ILI9341" / "ST7789" */
 void board_set_backlight(int percent);       /* 0..100 */
 void board_set_led(bool r, bool g, bool b);  /* LED RGB tren board */
+void board_set_volume(int percent);         /* am luong loa 0..100 (0 = tat tieng) */
 void board_beep(int times);                  /* tit ngan qua loa (khong chan: xep cho task rieng) */
 int board_light_raw(void);                   /* quang tro 0..4095; -1 neu tat trong menuconfig */

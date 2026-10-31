@@ -21,4 +21,5 @@ extern const lv_font_t ui_font_speed72;  /* Inter Bold 72, chu so va "-": toc do
 extern const lv_font_t ui_font_speed110; /* Inter Bold 110, chu so va "-": toc do khi chay thuong */
 extern const lv_font_t ui_font_sign40;   /* Inter Bold 40, chu so va "-": bien gioi han to (chay thuong) */
 extern const lv_font_t ui_font_unit22;   /* Inter Bold 22, chi ASCII: don vi m / km, so loi ra vong xuyen */
+extern const lv_font_t ui_font_onoff44;  /* Inter Bold 44, chi chu O N F: nut loa ON / OFF */
 #endif

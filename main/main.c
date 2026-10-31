@@ -65,10 +65,18 @@ static void on_rotate(void)                                 /* giu tay tren man 
     settings_set_rotated(r);
 }   /* nho che do Ngay/Dem qua lan tat may */
 
-static void on_level(int level)                              /* vuot toc do: LED do + 2 tieng tit */
+static void on_level(int level)                              /* vuot toc do: LED do (tieng tit: on_beep) */
 {
     board_set_led(level == UI_LEVEL_OVER, false, false);
-    if (level == UI_LEVEL_OVER) board_beep(2);
+}
+
+static void on_beep(int times) { board_beep(times); }
+
+static void on_sound(bool on, int vol)                      /* man cai dat am luong: dat loa + luu NVS */
+{
+    board_set_volume(on ? vol : 0);
+    settings_set_sound(on);
+    settings_set_volume(vol);
 }
 
 /* Man kiem tra mau: 4 o DO / XANH LA / TRANG / XANH DUONG (tren-trai, tren-phai, duoi-trai, duoi-phai).
@@ -192,6 +200,10 @@ void app_main(void)
     ui_set_night_hook(on_night);                             /* dat den nen ngay theo Ngay/Dem */
     ui_set_mode_hook(on_mode);
     ui_set_level_hook(on_level);
+    board_set_volume(settings_get_sound() ? settings_get_volume() : 0);
+    ui_set_sound(settings_get_sound(), settings_get_volume());
+    ui_set_beep_hook(on_beep);
+    ui_set_sound_hook(on_sound);
     ui_set_rotate_hook(on_rotate);
     link_init();                                             /* bo giai ma HLP + chon duong truyen */
     {

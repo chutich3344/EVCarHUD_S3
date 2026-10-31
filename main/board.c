@@ -147,10 +147,17 @@ void board_set_led(bool r, bool g, bool b)
 
 /* ---------------------- loa ---------------------- */
 static QueueHandle_t s_beep_q;
+static int s_vol = 70;                      /* 0..100; 0 = tat tieng */
+
+void board_set_volume(int percent)
+{
+    s_vol = percent < 0 ? 0 : percent > 100 ? 100 : percent;
+}
 
 static void tone(bool on)
 {
-    ledc_set_duty(LEDC_LOW_SPEED_MODE, SPK_CHANNEL, on ? 512 : 0);  /* 50% */
+    /* am luong = do rong xung: 50% la to nhat (song vuong), nho hon thi tieng nho dan */
+    ledc_set_duty(LEDC_LOW_SPEED_MODE, SPK_CHANNEL, on ? (uint32_t)(4 + 508 * s_vol / 100) : 0);
     ledc_update_duty(LEDC_LOW_SPEED_MODE, SPK_CHANNEL);
 }
 
@@ -197,7 +204,7 @@ static void speaker_init(void)
 
 void board_beep(int times)
 {
-    if (s_beep_q && times > 0) xQueueSend(s_beep_q, &times, 0);
+    if (s_beep_q && times > 0 && s_vol > 0) xQueueSend(s_beep_q, &times, 0);
 }
 
 /* ---------------------- quang tro ---------------------- */

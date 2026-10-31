@@ -70,7 +70,14 @@ void ui_set_night_hook(void (*cb)(bool night));        /* giao dien vua doi sang
 void ui_rotate(void);                                  /* xoay 180 do (giu tay 1 giay hoac bam BOOT 2 lan) */
 void ui_set_rotate_hook(void (*cb)(void));             /* giu tay 1 giay tren man hinh: board xoay 180 do */
 void ui_set_level_hook(void (*cb)(int level));         /* UI_LEVEL_*: board bat den LED / loa */
-void ui_toast(const char *text);                       /* thong bao nho 2 giay o giua man hinh */
+void ui_toast(const char *text);
+/* --- loa ---
+ * Tieng tit theo trang thai: 1 tieng khi co canh bao moi (camera, canh sat...) va khi con 100 m toi cho re;
+ * 2 tieng khi vuot toc do (nhac lai moi 8 giay neu van vuot). Giu tay 5 giay tren man hinh: man cai dat am luong. */
+void ui_open_settings(void);                           /* mo man cai dat am luong (giu tay 5 giay) */
+void ui_set_sound(bool on, int volume);                /* gia tri da luu (NVS), volume 10..100 */
+void ui_set_beep_hook(void (*cb)(int times));          /* giao dien muon phat n tieng tit */
+void ui_set_sound_hook(void (*cb)(bool on, int volume)); /* nguoi dung doi am luong: board dat loa + luu NVS */                       /* thong bao nho 2 giay o giua man hinh */
 
 #ifdef __cplusplus
 }
