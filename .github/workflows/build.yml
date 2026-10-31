@@ -19,6 +19,9 @@ jobs:
         with:
           fetch-depth: 0                 # de phien ban trong file .bin la ma commit (git describe)
 
+      - name: Bo the ban-moi-nhat (khong de git describe ghi ten the vao phien ban)
+        run: git tag -d ban-moi-nhat || true
+
       - name: Build bang ESP-IDF 5.5
         uses: espressif/esp-idf-ci-action@v1
         with:
