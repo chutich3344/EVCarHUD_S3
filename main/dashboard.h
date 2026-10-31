@@ -35,6 +35,7 @@ enum { UI_MODE_AUTO = 0, UI_MODE_DAY = 1, UI_MODE_NIGHT = 2 };
 enum { UI_LEVEL_OK = 0, UI_LEVEL_NEAR = 1, UI_LEVEL_OVER = 2 };   /* toc do so voi gioi han */
 
 void dashboard_create(lv_obj_t *screen);
+lv_obj_t *ui_splash_create(const char *version);         /* man chao logo luc khoi dong (chua nap, goi lv_screen_load) */
 
 /* --- toc do / dong ho --- */
 void ui_set_speed(int kmh);

@@ -465,6 +465,27 @@ static void build_eta(void)
     lbl_eta2 = mk_label_w(card_eta, &ui_font_mono14, TXT_X, 28, RW - TXT_X - 6, LV_TEXT_ALIGN_LEFT);
 }
 
+/* Man chao: logo EVCarHUD (ui_logo.c, tao boi tools/logo/gen_logo.py) tren nen toi, hien dan ra; dong duoi: phien ban. */
+extern const lv_image_dsc_t ui_logo;
+
+lv_obj_t *ui_splash_create(const char *version)
+{
+    lv_obj_t *scr = lv_obj_create(NULL);
+    lv_obj_remove_flag(scr, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_style_bg_color(scr, lv_color_hex(0x05080F), 0);
+    lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, 0);
+    lv_obj_t *img = lv_image_create(scr);
+    lv_image_set_src(img, &ui_logo);
+    lv_obj_align(img, LV_ALIGN_CENTER, 0, -10);
+    lv_obj_fade_in(img, 500, 0);
+    lv_obj_t *v = lv_label_create(scr);
+    lv_obj_set_style_text_font(v, &ui_font_sm12, 0);
+    lv_obj_set_style_text_color(v, lv_color_hex(0x9CA3AF), 0);
+    lv_label_set_text_fmt(v, "Phiên bản %s", version);
+    lv_obj_align(v, LV_ALIGN_BOTTOM_MID, 0, -14);
+    return scr;
+}
+
 void dashboard_create(lv_obj_t *screen)
 {
     scr = screen;

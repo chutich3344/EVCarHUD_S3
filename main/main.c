@@ -104,6 +104,18 @@ static void color_test(void)
 #endif
 }
 
+/* Man chao logo 3 giay (ui_splash_create); bang dieu khien thay man nay va xoa no (auto_del). */
+#define SPLASH_MS 3000
+static void splash(void)
+{
+    const esp_app_desc_t *ad = esp_app_get_description();
+    board_ui_lock();
+    lv_screen_load(ui_splash_create(ad ? ad->version : ""));
+    board_ui_unlock();
+    board_set_backlight(CONFIG_EVCARHUD_BL_DAY);
+    vTaskDelay(pdMS_TO_TICKS(SPLASH_MS));
+}
+
 #if CONFIG_EVCARHUD_LDR
 static void light_task(void *arg)                            /* quang tro: Tu dong Ngay/Dem, co tre de khong nhap nhay */
 {
@@ -139,11 +151,12 @@ void app_main(void)
         return;
     }
     color_test();
+    splash();
 
     bool demo = settings_get_demo();
     board_ui_lock();
     lv_obj_t *scr = lv_obj_create(NULL);
-    lv_screen_load(scr);
+    lv_screen_load_anim(scr, LV_SCR_LOAD_ANIM_FADE_IN, 300, 0, true);
     dashboard_create(scr);
     ui_set_mode(settings_get_mode());
     ui_set_night_hook(on_night);                             /* dat den nen ngay theo Ngay/Dem */

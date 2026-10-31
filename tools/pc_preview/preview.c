@@ -60,8 +60,12 @@ int main(int argc, char **argv)
     lv_display_set_buffers(d, buf, NULL, sizeof buf, LV_DISPLAY_RENDER_MODE_PARTIAL);
     lv_display_set_flush_cb(d, flush_cb);
 
+    lv_screen_load(ui_splash_create("v1.1"));          /* man chao logo */
+    run(800);
+    snprintf(p, sizeof p, "%s/00_man_chao.bmp", dir); save_bmp(p);
+
     lv_obj_t *scr = lv_obj_create(NULL);
-    lv_screen_load(scr);
+    lv_screen_load_anim(scr, LV_SCR_LOAD_ANIM_FADE_IN, 300, 0, true);
     dashboard_create(scr);
     hlp_dash_init(NULL, NULL);                     /* tren board: link_init() goi */
 
