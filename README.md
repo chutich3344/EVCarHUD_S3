@@ -1,10 +1,13 @@
 # EVCarHUD cho board ESP32-2432S028 (2.8" 320x240)
 
 Firmware HUD cho board "Cheap Yellow Display" ESP32-2432S028 (ESP32-WROOM, màn 2.8" ILI9341/ST7789, cảm ứng XPT2046).
-Điện thoại chạy **Waze Mod** gửi dữ liệu dẫn đường (giao thức HLP/1) qua **Bluetooth LE**, HUD giải mã và hiện giao diện dạng thẻ:
+Điện thoại chạy **Waze Mod** gửi dữ liệu dẫn đường (giao thức HLP/1) qua **Bluetooth LE**, HUD giải mã và hiện giao diện dạng thẻ giống bản mô phỏng trên evcarhud.com:
 
 ![Giao diện](docs/giao-dien.png)
 
+- **Màn chờ** (chưa có dữ liệu, hoặc đứng yên 30 giây khi không dẫn đường): đồng hồ lật giờ | phút, ngày tháng, dòng "Chờ kết nối Waze qua điện thoại" hoặc "Đã kết nối điện thoại".
+- **Chạy thường** (đang chạy, chưa đặt lộ trình): tốc độ số lớn bên trái, biển giới hạn + biển báo bên phải, cảnh báo và lời nhắc ở dưới. Chưa mở Waze (chỉ có tốc độ GPS): biển giới hạn hiện "-", thẻ cảnh báo "Đường thoáng".
+- **Dẫn đường**: thẻ rẽ ở trên, tốc độ và biển báo ở giữa, cảnh báo và giờ đến ở dưới.
 - Thẻ dẫn đường: mũi tên rẽ, khoảng cách, kiểu rẽ, tên đường, thẻ "Tiếp theo".
 - Tốc độ hiện tại: xanh lá, vàng khi cách giới hạn ≤ 5 km/h, đỏ khi vượt (kèm viền đỏ nhấp nháy, LED đỏ, loa kêu 2 tiếng).
 - Biển giới hạn tốc độ và biển báo gần nhất (khu dân cư, cấm vượt, cấm rẽ...).
@@ -63,11 +66,11 @@ Sửa xong chạy lại `idf.py build flash`.
 
 ## 5. Kết nối Waze Mod
 
-Trên điện thoại: **Waze Mod → HUD → Bluetooth LE**, chọn thiết bị **EVCarHUD**. Chưa kết nối thì màn hình hiện "MẤT TÍN HIỆU" kèm hướng dẫn.
+Trên điện thoại: **Waze Mod → HUD → Bluetooth LE**, chọn thiết bị **EVCarHUD**. Chưa kết nối thì màn hình hiện màn chờ đồng hồ với dòng "Chờ kết nối Waze qua điện thoại"; điện thoại nối Bluetooth xong đổi thành "Đã kết nối điện thoại".
 
 ## 6. Chế độ trình diễn (không cần điện thoại)
 
-Giữ nút **BOOT 3 giây**: bật/tắt chế độ trình diễn (dữ liệu giả, chạy vòng 42 giây), board tự khởi động lại. Dùng để trưng bày hoặc kiểm tra màn hình.
+Giữ nút **BOOT 3 giây**: bật/tắt chế độ trình diễn (dữ liệu giả, chạy vòng 60 giây: chạy chưa có Waze, chạy thường có Waze, rồi dẫn đường), board tự khởi động lại. Dùng để trưng bày hoặc kiểm tra màn hình.
 
 ## Chân GPIO (mặc định)
 

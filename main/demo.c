@@ -18,6 +18,8 @@ typedef struct {
 } leg_t;
 
 static const leg_t LEGS[] = {
+    {8, 0, 30, 42, 0, 0, -1, 0, "", "", 0, 0, 0, 0, 0},                                   /* chay, chua co Waze: chi GPS */
+    {10, 50, 42, 48, 0, 0, -1, 0, "Nguyễn Văn Linh", "", 40, 600, 23, 300, 0},           /* chay thuong co Waze */
     {10, 50, 28, 46, 1, 2, 600, 0, "Nguyễn Trãi", "Nguyễn Trãi", 1, 900, 23, 300, 0},
     {8, 60, 46, 64, 3, 9, 350, 0, "Nguyễn Hữu Thọ", "Lê Văn Lương", 2, 250, 9, 500, 0},
     {10, 80, 62, 78, 10, 0, 800, 2, "Đại lộ Võ Văn Kiệt", "Vòng xoay Phú Lâm", 6, 700, 0, 0, 1},

@@ -9,5 +9,8 @@ extern const lv_font_t ui_font_txt16;    /* Inter Bold 16: ten duong, ten canh b
 extern const lv_font_t ui_font_mono14;   /* JetBrains Mono Bold 14: khoang cach canh bao, quang duong con lai */
 extern const lv_font_t ui_font_dist24;   /* JetBrains Mono Bold 24, chi ASCII: khoang cach re */
 extern const lv_font_t ui_font_sign24;   /* Inter Bold 24, chi chu so: so trong bien gioi han */
-extern const lv_font_t ui_font_speed62;  /* Inter Bold 62, chi chu so va "-": toc do */
+extern const lv_font_t ui_font_speed62;  /* Inter Bold 62, chi chu so va "-": toc do khi dan duong */
+extern const lv_font_t ui_font_speed88;  /* Inter Bold 88, chi chu so va "-": toc do khi chay thuong */
+extern const lv_font_t ui_font_sign32;   /* Inter Bold 32, chi chu so va "-": bien gioi han lon (chay thuong) */
+extern const lv_font_t ui_font_clock60;  /* JetBrains Mono Bold 60, chi chu so va "-": dong ho man cho */
 #endif

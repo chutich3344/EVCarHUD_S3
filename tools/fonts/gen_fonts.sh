@@ -27,3 +27,6 @@ gen ui_font_mono14  14 jetbrains-mono 700 full
 gen ui_font_dist24  24 jetbrains-mono 700 ascii
 gen ui_font_sign24  24 inter 700 digits
 gen ui_font_speed62 62 inter 700 digits
+gen ui_font_speed88 88 inter 700 digits
+gen ui_font_sign32  32 inter 700 digits
+gen ui_font_clock60 60 jetbrains-mono 700 digits

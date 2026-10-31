@@ -42,6 +42,7 @@ void ui_set_speed(int kmh);
 void ui_set_speed_limit(int kmh);                 /* 0 = chua biet: an bien, khong canh bao */
 void ui_set_time(int hour, int minute, int wday); /* wday: 0 = Chu nhat ... 6 = Thu bay, -1 = chua biet */
 int ui_get_speed(void);
+void ui_set_date(int day, int month);             /* ngay 1..31, thang 1..12 (man cho) */
 bool ui_get_clock(int *h, int *m);                /* false: chua co gio tu dien thoai */
 
 /* --- du lieu dan duong (Waze HLP) --- */
@@ -49,9 +50,11 @@ void ui_set_nav(bool active, int turn, int dist_m, int exit_n, const char *stree
 void ui_set_route(const char *eta, int remaining_m, int remaining_min);   /* eta rong va remaining <= 0: hien dong ho */
 void ui_set_alerts(const ui_alert_t *alerts, int n);   /* gan -> xa; n = 0: khong co canh bao */
 void ui_set_chip(int kind, const char *text);
-void ui_set_signal(bool ok);                           /* false: hien "MAT TIN HIEU" */
+void ui_set_signal(bool ok);                           /* false: chua co du lieu tu dien thoai -> man cho */
+void ui_set_phone(bool connected);                     /* dien thoai noi Bluetooth (man cho: "Da ket noi dien thoai") */
+void ui_set_waze(bool on);                             /* false: chi co toc do GPS, chua co du lieu Waze */
 void ui_set_gps(int level);
-void ui_set_hint(const char *text);                    /* dong chu nho duoi banner mat tin hieu */
+void ui_set_hint(const char *text);                    /* bo qua: man cho tu hien "Cho ket noi Waze..." */
 
 /* --- Ngay / Dem ---
  * Tu dong: theo cam bien anh sang neu board co (ui_set_ambient), khong thi theo gio (6:00-18:00 la ngay).

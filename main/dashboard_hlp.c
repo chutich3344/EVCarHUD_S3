@@ -26,6 +26,9 @@ static uint32_t clock_tick;
 static int shown_minute = -1;
 
 static lv_timer_t *watch_tmr;
+#define WAZE_HOLD_MS 5000             /* mat du lieu Waze (ten duong, gioi han, canh bao) qua 5 s: coi nhu chi con GPS */
+static uint32_t last_waze_tick;
+static bool waze_seen;
 
 static void send_line(const char *line)
 {
@@ -97,22 +100,6 @@ static const char *held_st2(const hlp_state_t *s)
 
 static void apply_state(const hlp_state_t *s)
 {
-    ui_set_speed(s->spd);
-    ui_set_speed_limit(s->lim);
-
-    /* ten duong: dang re -> duong SAU khi re (st2); khong thi duong hien tai (st) */
-    char tmp[HLP_STR_MAX], street[HLP_STR_MAX];
-    const char *st2 = held_st2(s);
-    const char *src = (s->nav && s->trn != 0 && st2[0]) ? st2 : s->st;
-    strncpy(tmp, src, sizeof tmp - 1);
-    tmp[sizeof tmp - 1] = 0;
-    strip_paren(tmp);                                /* bo "(Lan hon hop)" */
-    snprintf(street, sizeof street, "%s", tmp);     /* giu chu hoa/thuong nhu Waze (giong mau) */
-    ui_set_nav(s->nav != 0, s->trn, s->dst, s->exit_n, street, s->trn2);
-
-    int rm = s->rm > 0 ? s->rm : (int)(s->rkm * 1000.0 + 0.5);
-    ui_set_route(s->eta, rm, s->rmin);
-
     /* canh bao: alrs (gan->xa); neu khong co thi dung alr/alrD/alrV */
     ui_alert_t al[HLP_MAX_ALERTS];
     int n = 0;
@@ -129,6 +116,31 @@ static void apply_state(const hlp_state_t *s)
         al[0].value = s->alrV;
         n = 1;
     }
+
+    /* HLP khong co co "Waze dang mo": co ten duong, gioi han, canh bao hay dang dan duong la co du lieu Waze;
+     * chi co toc do la toc do GPS cua dien thoai. Giu 5 s de duong khong ten khong lam nhay giao dien. */
+    if (s->nav || s->lim > 0 || s->st[0] || n > 0) {
+        waze_seen = true;
+        last_waze_tick = lv_tick_get();
+    }
+    ui_set_waze(waze_seen && lv_tick_elaps(last_waze_tick) < WAZE_HOLD_MS);
+
+    ui_set_speed(s->spd);
+    ui_set_speed_limit(s->lim);
+
+    /* ten duong: dang re -> duong SAU khi re (st2); khong thi duong hien tai (st) */
+    char tmp[HLP_STR_MAX], street[HLP_STR_MAX];
+    const char *st2 = held_st2(s);
+    const char *src = (s->nav && s->trn != 0 && st2[0]) ? st2 : s->st;
+    strncpy(tmp, src, sizeof tmp - 1);
+    tmp[sizeof tmp - 1] = 0;
+    strip_paren(tmp);                                /* bo "(Lan hon hop)" */
+    snprintf(street, sizeof street, "%s", tmp);     /* giu chu hoa/thuong nhu Waze (giong mau) */
+    ui_set_nav(s->nav != 0, s->trn, s->dst, s->exit_n, street, s->trn2);
+
+    int rm = s->rm > 0 ? s->rm : (int)(s->rkm * 1000.0 + 0.5);
+    ui_set_route(s->eta, rm, s->rmin);
+
     ui_set_alerts(al, n);
 
     /* chip: camera gan nhat > vung cam vuot */
@@ -190,6 +202,19 @@ static void on_line(const char *line, size_t len, void *user)
     set_signal(true);
 }
 
+/* so ngay tu 1/1/1970 -> ngay, thang (thuat toan civil_from_days cua H. Hinnant) */
+static void civil_from_days(int64_t z, int *day, int *month)
+{
+    z += 719468;
+    int64_t era = (z >= 0 ? z : z - 146096) / 146097;
+    int64_t doe = z - era * 146097;
+    int64_t yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
+    int64_t doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    int64_t mp = (5 * doy + 2) / 153;
+    *day = (int)(doy - (153 * mp + 2) / 5 + 1);
+    *month = (int)(mp < 10 ? mp + 3 : mp - 9);
+}
+
 static void watch_cb(lv_timer_t *t)
 {
     (void)t;
@@ -201,8 +226,12 @@ static void watch_cb(lv_timer_t *t)
         int minute = (int)((now / 60) % 1440);
         if (minute != shown_minute) {
             shown_minute = minute;
-            int wday = (int)((now / 86400 + 4) % 7);       /* 1/1/1970 la thu nam; 0 = Chu nhat */
+            int64_t days = now / 86400;
+            int wday = (int)((days + 4) % 7);              /* 1/1/1970 la thu nam; 0 = Chu nhat */
             ui_set_time(minute / 60, minute % 60, wday);
+            int d, m;
+            civil_from_days(days, &d, &m);
+            ui_set_date(d, m);
         }
     }
 }
@@ -225,6 +254,8 @@ void hlp_dash_init(hlp_tx_cb_t tx, void *user)
 void hlp_dash_on_connect(void)
 {
     hold_st2[0] = 0;
+    waze_seen = false;
+    ui_set_phone(true);
     hlp_rx_init(&rx, on_line, NULL);                 /* bo dong dang do tu ket noi truoc */
     have_ts = false;
     have_state = false;                              /* ket noi moi: GPS vang cho den khi co tin `s` dau tien */
@@ -239,6 +270,7 @@ void hlp_dash_on_connect(void)
 
 void hlp_dash_on_disconnect(void)
 {
+    ui_set_phone(false);
     set_signal(false);
 }
 
