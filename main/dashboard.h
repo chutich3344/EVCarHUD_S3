@@ -76,6 +76,7 @@ void ui_toast(const char *text);
 /* --- loa ---
  * Tieng tit theo trang thai: 1 tieng khi co canh bao moi (camera, canh sat...) va khi con 100 m toi cho re;
  * 2 tieng khi vuot toc do (nhac lai moi 8 giay neu van vuot). Giu tay 5 giay tren man hinh: man cai dat am luong. */
+bool ui_settings_shown(void);                          /* man cai dat dang mo */
 void ui_open_settings(void);                           /* mo man cai dat am luong (giu tay 5 giay) */
 void ui_open_settings_page(int page);                  /* 0 = Am thanh, 1 = Ket noi */
 void ui_set_source(int source);                        /* nguon da luu (NVS), UI_SRC_* */

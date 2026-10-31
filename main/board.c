@@ -278,8 +278,8 @@ static void touch_read_cb(lv_indev_t *indev, lv_indev_data_t *data)
     static int32_t last_x, last_y;
     bool pressed = esp_lcd_touch_get_coordinates(s_tp, &x, &y, NULL, &cnt, 1) && cnt > 0;
     uint32_t now = lv_tick_get();
-    if (!pressed) {                       /* XPT2046 hay mat 1-2 lan doc khi dang giu tay: chua coi la nha trong 150 ms */
-        bool hold = last_ms && now - last_ms < 150;
+    if (!pressed) {                       /* XPT2046 hay mat 1-2 lan doc khi dang giu tay: chua coi la nha trong 250 ms */
+        bool hold = last_ms && now - last_ms < 250;
         data->state = hold ? LV_INDEV_STATE_PRESSED : LV_INDEV_STATE_RELEASED;
         data->point.x = last_x;
         data->point.y = last_y;

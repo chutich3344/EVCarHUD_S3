@@ -598,7 +598,7 @@ void ui_toast(const char *text)
 static void on_click(lv_event_t *e)
 {
     (void)e;
-    if (hold_used) return;
+    if (hold_used || shown(set_scr)) return;
     ui_cycle_mode();
 }
 
@@ -611,21 +611,30 @@ void ui_rotate(void)
     ui_toast("Đã xoay màn hình");
 }
 
-/* Giu tay tren man hinh 5 giay: mo cai dat (khong con xoay bang cam ung: xoay bang nut BOOT bam 2 lan). */
+/* Giu tay tren man hinh 5 giay: mo cai dat (khong con xoay bang cam ung: xoay bang nut BOOT bam 2 lan).
+ * Cam ung XPT2046 hay mat tin hieu vai tram ms khi giu lau: nha tay < 600 ms roi cham lai van tinh la dang giu. */
+static uint32_t release_tick;
+static bool hold_hint;
 static void on_press(lv_event_t *e)
 {
     lv_event_code_t c = lv_event_get_code(e);
     if (c == LV_EVENT_PRESSED) {
-        press_tick = lv_tick_get();
-        hold_used = false;
-    } else if (c == LV_EVENT_LONG_PRESSED) {
-        hold_used = true;                                          /* giu lau: khong doi Ngay/Dem khi tha */
-        ui_toast("Giữ tiếp để mở cài đặt");
-    } else if (c == LV_EVENT_LONG_PRESSED_REPEAT) {
-        if (lv_tick_elaps(press_tick) >= 5000 && !shown(set_scr)) {
+        if (!release_tick || lv_tick_elaps(release_tick) > 600) {  /* lan cham moi */
+            press_tick = lv_tick_get();
+            hold_used = hold_hint = false;
+        }
+    } else if (c == LV_EVENT_PRESSING) {
+        uint32_t held = lv_tick_elaps(press_tick);
+        if (held >= 1000 && !hold_hint) {
+            hold_hint = hold_used = true;                          /* giu lau: khong doi Ngay/Dem khi tha */
+            ui_toast("Giữ tiếp để mở cài đặt");
+        }
+        if (held >= 5000 && !shown(set_scr)) {
             show(toast, false);
             settings_open();
         }
+    } else if (c == LV_EVENT_RELEASED) {
+        release_tick = lv_tick_get() | 1;
     }
 }
 
@@ -1103,8 +1112,8 @@ void dashboard_create(lv_obj_t *screen_obj)
     lv_obj_remove_flag(scr, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_add_event_cb(scr, on_click, LV_EVENT_SHORT_CLICKED, NULL);   /* cham: Ngay/Dem; giu 5 giay: cai dat */
     lv_obj_add_event_cb(scr, on_press, LV_EVENT_PRESSED, NULL);
-    lv_obj_add_event_cb(scr, on_press, LV_EVENT_LONG_PRESSED, NULL);
-    lv_obj_add_event_cb(scr, on_press, LV_EVENT_LONG_PRESSED_REPEAT, NULL);
+    lv_obj_add_event_cb(scr, on_press, LV_EVENT_PRESSING, NULL);
+    lv_obj_add_event_cb(scr, on_press, LV_EVENT_RELEASED, NULL);
 
     build_nav();
     build_cruise();
@@ -1331,3 +1340,5 @@ void ui_set_mode_hook(void (*cb)(int)) { mode_cb = cb; }
 void ui_set_night_hook(void (*cb)(bool)) { night_cb = cb; if (cb) cb(night); }
 void ui_set_level_hook(void (*cb)(int)) { level_cb = cb; }
 void ui_set_rotate_hook(void (*cb)(void)) { rotate_cb = cb; }
+
+bool ui_settings_shown(void) { return set_scr && shown(set_scr); }
