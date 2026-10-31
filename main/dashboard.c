@@ -15,7 +15,7 @@
  * It chu: chi so + bieu tuong. Mau co nghia: xanh = on, vang = sap toi camera / canh bao, do = qua toc do
  * (dan duong: so do + vien do nhap nhay; chay thuong: nen do). Thanh duoi khoang cach ngan dan khi toi cho re,
  * thanh trong dai vang ngan dan khi toi canh bao. Cham man hinh hoac bam BOOT: Tu dong -> Ngay -> Dem.
- * Giu tay 1 giay: xoay 180 do. */
+ * Giu tay 5 giay: cai dat (Am thanh / Ket noi). Bam BOOT 2 lan: xoay 180 do. */
 #include "dashboard.h"
 #include "dashboard_signs.h"
 #include "ui_fonts.h"
@@ -611,7 +611,7 @@ void ui_rotate(void)
     ui_toast("Đã xoay màn hình");
 }
 
-/* Giu tay: 1 giay hien goi y, tha ra thi xoay 180 do; giu du 5 giay thi mo cai dat am luong (khong xoay). */
+/* Giu tay tren man hinh 5 giay: mo cai dat (khong con xoay bang cam ung: xoay bang nut BOOT bam 2 lan). */
 static void on_press(lv_event_t *e)
 {
     lv_event_code_t c = lv_event_get_code(e);
@@ -619,18 +619,12 @@ static void on_press(lv_event_t *e)
         press_tick = lv_tick_get();
         hold_used = false;
     } else if (c == LV_EVENT_LONG_PRESSED) {
-        ui_toast("Thả tay: xoay · Giữ 5 giây: âm lượng");
+        hold_used = true;                                          /* giu lau: khong doi Ngay/Dem khi tha */
+        ui_toast("Giữ tiếp để mở cài đặt");
     } else if (c == LV_EVENT_LONG_PRESSED_REPEAT) {
-        if (!hold_used && lv_tick_elaps(press_tick) >= 5000) {
-            hold_used = true;
+        if (lv_tick_elaps(press_tick) >= 5000 && !shown(set_scr)) {
             show(toast, false);
             settings_open();
-        }
-    } else if (c == LV_EVENT_RELEASED) {
-        if (!hold_used && lv_tick_elaps(press_tick) >= 1000) {
-            hold_used = true;                                      /* khong doi Ngay/Dem */
-            show(toast, false);
-            ui_rotate();
         }
     }
 }
@@ -1107,11 +1101,10 @@ void dashboard_create(lv_obj_t *screen_obj)
 {
     scr = screen_obj;
     lv_obj_remove_flag(scr, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_add_event_cb(scr, on_click, LV_EVENT_SHORT_CLICKED, NULL);   /* cham: Ngay/Dem; giu 1 giay: xoay; 5 giay: am luong */
+    lv_obj_add_event_cb(scr, on_click, LV_EVENT_SHORT_CLICKED, NULL);   /* cham: Ngay/Dem; giu 5 giay: cai dat */
     lv_obj_add_event_cb(scr, on_press, LV_EVENT_PRESSED, NULL);
     lv_obj_add_event_cb(scr, on_press, LV_EVENT_LONG_PRESSED, NULL);
     lv_obj_add_event_cb(scr, on_press, LV_EVENT_LONG_PRESSED_REPEAT, NULL);
-    lv_obj_add_event_cb(scr, on_press, LV_EVENT_RELEASED, NULL);
 
     build_nav();
     build_cruise();

@@ -69,8 +69,8 @@ void ui_cycle_mode(void);
 void ui_set_ambient(int dark);                         /* 1 toi, 0 sang, -1 khong co cam bien */
 void ui_set_mode_hook(void (*cb)(int mode));           /* nguoi dung doi che do: de luu NVS */
 void ui_set_night_hook(void (*cb)(bool night));        /* giao dien vua doi sang Ngay/Dem: board chinh den nen */
-void ui_rotate(void);                                  /* xoay 180 do (giu tay 1 giay hoac bam BOOT 2 lan) */
-void ui_set_rotate_hook(void (*cb)(void));             /* giu tay 1 giay tren man hinh: board xoay 180 do */
+void ui_rotate(void);                                  /* xoay 180 do (bam BOOT 2 lan) */
+void ui_set_rotate_hook(void (*cb)(void));             /* bam BOOT 2 lan: board xoay 180 do */
 void ui_set_level_hook(void (*cb)(int level));         /* UI_LEVEL_*: board bat den LED / loa */
 void ui_toast(const char *text);
 /* --- loa ---

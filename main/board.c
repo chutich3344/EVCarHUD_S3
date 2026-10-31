@@ -330,7 +330,7 @@ static void touch_init(lv_display_t *disp)
     lv_indev_set_type(indev, LV_INDEV_TYPE_POINTER);
     lv_indev_set_read_cb(indev, touch_read_cb);
     lv_indev_set_display(indev, disp);
-    lv_indev_set_long_press_time(indev, 1000);                     /* giu 1 giay: xoay man hinh */
+    lv_indev_set_long_press_time(indev, 1000);                     /* giu 1 giay: hien goi y, 5 giay: cai dat */
     ESP_LOGI(TAG, "cam ung san sang");
 }
 #endif

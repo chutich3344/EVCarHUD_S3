@@ -58,7 +58,7 @@ static int64_t build_unix(void)
     return days * 86400 + hh * 3600 + mm * 60 + ss;
 }
 
-static void on_rotate(void)                                 /* giu tay tren man hinh: xoay 180 do va nho lai */
+static void on_rotate(void)                                 /* bam BOOT 2 lan: xoay 180 do va nho lai */
 {
     bool r = !board_get_rotated();
     board_set_rotated(r);
