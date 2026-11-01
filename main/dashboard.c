@@ -126,11 +126,10 @@ static bool hold_used;
 static lv_obj_t *set_scr, *set_toggle, *set_spk_cone, *set_arc[2], *set_x[2], *lbl_set_onoff;
 static lv_obj_t *set_minus, *set_plus, *lbl_set_vol, *vol_bar, *vol_bar_fill;
 static lv_timer_t *set_tmr;
-/* trang Ket noi: chon nguon du lieu Waze Mod / GOFA (doi nguon thi dem 3 giay roi khoi dong lai) */
+/* trang Ket noi: chon nguon du lieu Waze Mod / GOFA (doi nguon: luu roi cho bam RST) */
 static lv_obj_t *set_tab[2], *set_tab_line[2], *lbl_tab[2], *page_snd, *page_src, *src_card[2], *lbl_src_st[2];
 static lv_obj_t *rb_scr, *rb_tile, *lbl_rb_title, *lbl_rb_cnt;
-static int set_page, src = UI_SRC_WAZE, rb_src, rb_left;
-static lv_timer_t *rb_tmr;
+static int set_page, src = UI_SRC_WAZE, rb_src;
 static void (*source_cb)(int);
 /* nut BOOT trong cai dat: bam 1 lan = sang muc ke, bam 2 lan = chon (cam ung dien tro kho bam) */
 static int set_focus = -1;
@@ -248,7 +247,6 @@ static void beep(int times)
 
 static void render_all(void);
 static void settings_render(void);
-static void rb_tmr_cb(lv_timer_t *t);
 static void render_standby(void);
 
 /* ======================= mau sac ======================= */
@@ -743,6 +741,7 @@ static void settings_close(void)
 static void set_tmr_cb(lv_timer_t *t)
 {
     (void)t;
+    if (set_page == 1) return;                                     /* trang Ket noi (co MAC): khong tu dong, de chep MAC */
     settings_close();
 }
 
@@ -754,46 +753,31 @@ static void settings_changed(void)
     beep(1);                                                       /* nghe thu muc am moi */
 }
 
-static void rb_render(void)
-{
-    lv_label_set_text_fmt(lbl_rb_cnt, "%d", rb_left);
-}
-
+/* Doi nguon: luu ngay vao NVS roi dung o man MAC Bluetooth (de chep MAC dang ky GOFA).
+ * Khong tu khoi dong lai: nguoi dung bam RST. Cham man hinh / bam BOOT: huy, tra lai nguon cu. */
 static void rb_cancel(void)
 {
-    lv_timer_pause(rb_tmr);
+    if (source_cb) source_cb(src);                                 /* luu lai nguon dang chay */
     show(rb_scr, false);
     lv_timer_reset(set_tmr);
     lv_timer_resume(set_tmr);
 }
 
-static void rb_tmr_cb(lv_timer_t *t)
-{
-    (void)t;
-    if (--rb_left > 0) { rb_render(); return; }
-    lv_timer_pause(rb_tmr);
-    lv_label_set_text(lbl_rb_cnt, "0");
-    src = rb_src;
-    if (source_cb) source_cb(src);                                 /* board luu NVS roi khoi dong lai */
-}
-
 static void rb_start(int want)
 {
     rb_src = want;
-    rb_left = 3;
-    lv_timer_pause(set_tmr);                                       /* dang dem: khong tu dong dong cai dat */
+    if (source_cb) source_cb(want);                                /* board luu NVS, chua khoi dong lai */
+    lv_timer_pause(set_tmr);                                       /* khong tu dong dong cai dat */
     if (rb_tile) lv_obj_delete(rb_tile);
-    rb_tile = ui_partner_tile(rb_scr, want, 72);
-    lv_obj_set_pos(rb_tile, (UI_W - 72) / 2, 26);
+    rb_tile = ui_partner_tile(rb_scr, want, 64);
+    lv_obj_set_pos(rb_tile, (UI_W - 64) / 2, 14);
     lv_obj_add_flag(rb_tile, LV_OBJ_FLAG_EVENT_BUBBLE);
-    lv_label_set_text(lbl_rb_title, want == UI_SRC_GOFA ? "Chuyển sang GOFA" : "Chuyển sang Waze Mod");
+    lv_label_set_text(lbl_rb_title, want == UI_SRC_GOFA ? "Đã chọn GOFA" : "Đã chọn Waze Mod");
     lv_obj_set_style_bg_color(rb_scr, lv_color_hex(0x05080C), 0);
     lv_obj_set_style_text_color(lbl_rb_title, lv_color_white(), 0);
-    rb_render();
+    lv_label_set_text(lbl_rb_cnt, mac_txt[0] ? mac_txt : "--");
     show(rb_scr, true);
     lv_obj_move_foreground(rb_scr);
-    lv_timer_reset(rb_tmr);
-    lv_timer_resume(rb_tmr);
 }
 
 static void on_set_btn(lv_event_t *e)
@@ -909,23 +893,24 @@ static void build_settings(void)
     }
     lbl_mac = mk_label_w(page_src, &ui_font_mono14, 0, 8 + ch + 4, UI_W, LV_TEXT_ALIGN_CENTER);
 
-    /* doi nguon: "Chuyen sang GOFA", dem 3 giay roi khoi dong lai; cham de huy */
+    /* doi nguon: "Da chon GOFA" + MAC Bluetooth, cho bam RST; cham de huy */
     rb_scr = mk_box(set_scr, 0, 0, UI_W, UI_H);
     lv_obj_set_style_bg_opa(rb_scr, LV_OPA_COVER, 0);
     lv_obj_add_flag(rb_scr, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_add_event_cb(rb_scr, on_set_btn, LV_EVENT_CLICKED, NULL);
-    lbl_rb_title = mk_label_w(rb_scr, &ui_font_txt16, 0, 114, UI_W, LV_TEXT_ALIGN_CENTER);
-    lv_obj_t *l = mk_label_w(rb_scr, &ui_font_txt14, 0, 140, UI_W, LV_TEXT_ALIGN_CENTER);
-    lv_label_set_text(l, "Khởi động lại sau");
+    lbl_rb_title = mk_label_w(rb_scr, &ui_font_txt16, 0, 88, UI_W, LV_TEXT_ALIGN_CENTER);
+    lv_obj_t *l = mk_label_w(rb_scr, &ui_font_txt14, 0, 116, UI_W, LV_TEXT_ALIGN_CENTER);
+    lv_label_set_text(l, "MAC Bluetooth");
     lv_obj_set_style_text_color(l, lv_color_hex(0x8AA0B4), 0);
-    lbl_rb_cnt = mk_label_w(rb_scr, &ui_font_num54, 0, 162, UI_W, LV_TEXT_ALIGN_CENTER);
+    lbl_rb_cnt = mk_label_w(rb_scr, &ui_font_dist24, 0, 136, UI_W, LV_TEXT_ALIGN_CENTER);
     lv_obj_set_style_text_color(lbl_rb_cnt, lv_color_hex(0x22D37A), 0);
-    l = mk_label_w(rb_scr, &ui_font_sm12, 0, 220, UI_W, LV_TEXT_ALIGN_CENTER);
+    l = mk_label_w(rb_scr, &ui_font_txt16, 0, 178, UI_W, LV_TEXT_ALIGN_CENTER);
+    lv_label_set_text(l, "Bấm RST để khởi động lại");
+    lv_obj_set_style_text_color(l, lv_color_hex(0xFFB020), 0);
+    l = mk_label_w(rb_scr, &ui_font_sm12, 0, 214, UI_W, LV_TEXT_ALIGN_CENTER);
     lv_label_set_text(l, "Chạm màn hình hoặc bấm BOOT để huỷ");
     lv_obj_set_style_text_color(l, lv_color_hex(0x8AA0B4), 0);
     show(rb_scr, false);
-    rb_tmr = lv_timer_create(rb_tmr_cb, 1000, NULL);
-    lv_timer_pause(rb_tmr);
     show(set_scr, false);
     set_tmr = lv_timer_create(set_tmr_cb, 8000, NULL);
     lv_timer_pause(set_tmr);

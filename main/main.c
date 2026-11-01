@@ -1,6 +1,6 @@
 /* EVCarHUD cho board ESP32-2432S028 ("Cheap Yellow Display" 2.8"):
  * dien thoai chay Waze Mod gui du lieu dan duong (HLP/1) qua Bluetooth LE -> giai ma -> giao dien the 320x240.
- * Giu BOOT 3 giay: bat/tat che do trinh dien (du lieu gia, khong can dien thoai). */
+ * Giu BOOT 5 giay: bat/tat che do trinh dien (du lieu gia, khong can dien thoai). */
 #include <stdio.h>
 #include <string.h>
 #include "sdkconfig.h"
@@ -73,12 +73,10 @@ static void on_level(int level)                              /* vuot toc do: LED
 
 static void on_beep(int times) { board_beep(times); }
 
-static void on_source(int src)                              /* doi Waze Mod / GOFA: luu roi khoi dong lai */
+static void on_source(int src)                              /* doi Waze Mod / GOFA: chi luu, nguoi dung bam RST de chay nguon moi */
 {
     settings_set_source(src);
-    ESP_LOGI(TAG, "doi nguon du lieu sang %s, khoi dong lai", src ? "GOFA" : "Waze Mod");
-    vTaskDelay(pdMS_TO_TICKS(200));
-    esp_restart();
+    ESP_LOGI(TAG, "nguon du lieu lan khoi dong sau: %s", src ? "GOFA" : "Waze Mod");
 }
 
 static void on_sound(bool on, int vol)                      /* man cai dat am luong: dat loa + luu NVS */

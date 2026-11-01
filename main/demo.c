@@ -2,7 +2,7 @@
  *   logo 3 giay -> 1 chua ket noi dien thoai -> 2 da ket noi dien thoai -> 3 doi Ngay -> Dem -> Tu dong
  *   -> 4 dang chay, chua co Waze -> 5 dang chay, co Waze -> 6 chi duong, chua co Waze -> 7 chi duong co Waze.
  * Du lieu gia la cac dong HLP/1 (giong Waze Mod gui) dua vao chinh bo giai ma that. Moi muc hien ten o giua man
- * hinh 2 giay. Bat/tat: giu BOOT 3 giay (xem buttons.c). Chay trong task LVGL (lv_timer), khong can khoa them. */
+ * hinh 2 giay. Bat/tat: giu BOOT 5 giay (xem buttons.c). Chay trong task LVGL (lv_timer), khong can khoa them. */
 #include "demo.h"
 #include "dashboard.h"
 #include "dashboard_hlp.h"

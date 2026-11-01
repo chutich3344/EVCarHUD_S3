@@ -80,11 +80,11 @@ bool ui_settings_shown(void);                          /* man cai dat dang mo */
 void ui_open_settings(void);                           /* mo man cai dat am luong (giu tay 5 giay) */
 void ui_open_settings_page(int page);                  /* 0 = Am thanh, 1 = Ket noi */
 void ui_set_source(int source);                        /* nguon da luu (NVS), UI_SRC_* */
-void ui_set_source_hook(void (*cb)(int source));       /* nguoi dung doi nguon (sau 3 giay): luu NVS + khoi dong lai */
+void ui_set_source_hook(void (*cb)(int source));       /* nguoi dung doi nguon: luu NVS (chay nguon moi sau khi bam RST) */
 enum { UI_KEY_NEXT = 0, UI_KEY_OK = 1 };
 bool ui_settings_key(int key);                         /* nut BOOT khi cai dat dang mo: 1 lan = muc ke, 2 lan = chon. false = cai dat dang dong */
 void ui_set_mac(const char *mac);                      /* MAC Bluetooth "AA:BB:.." hien o trang Ket noi (dang ky GOFA) */
-void ui_test_switch(int source);                       /* chi de chup anh xem truoc: man dem khoi dong lai */
+void ui_test_switch(int source);                       /* chi de chup anh xem truoc: man "Da chon" + MAC */
 void ui_set_sound(bool on, int volume);                /* gia tri da luu (NVS), volume 10..100 */
 void ui_set_beep_hook(void (*cb)(int times));          /* giao dien muon phat n tieng tit */
 void ui_set_sound_hook(void (*cb)(bool on, int volume)); /* nguoi dung doi am luong: board dat loa + luu NVS */                       /* thong bao nho 2 giay o giua man hinh */

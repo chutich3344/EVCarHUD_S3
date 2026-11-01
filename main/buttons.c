@@ -10,9 +10,9 @@
 #include "freertos/task.h"
 
 #define POLL_MS 20
-#define LONG_MS 3000
+#define LONG_MS 5000
 #define DOUBLE_MS 400                                              /* 2 lan bam cach nhau toi da 0,4 s */
-#define SET_MS 1000                                                /* giu 1-3 s roi tha: mo cai dat */
+#define SET_MS 1000                                                /* giu 1-5 s roi tha: mo cai dat */
 
 static const char *TAG = "nut";
 
@@ -26,7 +26,7 @@ static void btn_task(void *arg)
         bool down = gpio_get_level(CONFIG_EVCARHUD_PIN_BOOT) == 0;
         if (down) {
             held += POLL_MS;
-            if (held >= LONG_MS && !fired) {                       /* giu 3 s: doi che do trinh dien */
+            if (held >= LONG_MS && !fired) {                       /* giu 5 s: doi che do trinh dien */
                 fired = true;
                 bool demo = !settings_get_demo();
                 settings_set_demo(demo);
@@ -39,7 +39,7 @@ static void btn_task(void *arg)
             }
             continue;
         }
-        if (held >= SET_MS && !fired) {                            /* giu 1-3 s roi tha: mo cai dat */
+        if (held >= SET_MS && !fired) {                            /* giu 1-5 s roi tha: mo cai dat */
             since = -1;
             board_ui_lock();
             if (!ui_settings_shown()) ui_open_settings();
