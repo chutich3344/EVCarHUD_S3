@@ -132,6 +132,8 @@ static lv_obj_t *rb_scr, *rb_tile, *lbl_rb_title, *lbl_rb_cnt;
 static int set_page, src = UI_SRC_WAZE, rb_src, rb_left;
 static lv_timer_t *rb_tmr;
 static void (*source_cb)(int);
+/* nut BOOT trong cai dat: bam 1 lan = sang muc ke, bam 2 lan = chon (cam ung dien tro kho bam) */
+static int set_focus = -1;                  /* -1 = chua dung nut BOOT: khong ve khung chon */
 
 /* ======================= tien ich ======================= */
 static lv_obj_t *mk_box(lv_obj_t *p, int x, int y, int w, int h)
@@ -647,6 +649,37 @@ static void over_cb(lv_timer_t *t)
 /* ======================= cai dat am luong =======================
  * Cam ung chua hieu chinh toa do nen nut rat to: hang tren bat / tat loa, hang duoi "-" so "+".
  * Khong cham gi 8 giay: tu dong dong va luu. */
+/* Cac muc nut BOOT di qua, theo trang dang mo: o tab dau tien de doi trang. */
+static int focus_items(lv_obj_t **out)
+{
+    int n = 0;
+    out[n++] = set_tab[set_page];
+    if (set_page == 0) {
+        out[n++] = set_toggle;
+        if (snd_on) { out[n++] = set_minus; out[n++] = set_plus; }
+    } else {
+        out[n++] = src_card[0];
+        out[n++] = src_card[1];
+    }
+    return n;
+}
+
+static void focus_render(void)
+{
+    lv_obj_t *all[] = {set_tab[0], set_tab[1], set_toggle, set_minus, set_plus, src_card[0], src_card[1]};
+    for (size_t i = 0; i < sizeof all / sizeof all[0]; i++) lv_obj_set_style_outline_width(all[i], 0, 0);
+    if (set_focus < 0) return;
+    lv_obj_t *it[6];
+    int n = focus_items(it);
+    if (set_focus >= n) set_focus = n - 1;
+    lv_obj_t *o = it[set_focus];
+    lv_obj_set_style_outline_width(o, 4, 0);
+    lv_obj_set_style_outline_pad(o, o == set_tab[set_page] ? -6 : 3, 0);
+    lv_obj_set_style_outline_color(o, th->warn, 0);
+    lv_obj_set_style_outline_opa(o, LV_OPA_COVER, 0);
+    lv_obj_set_style_radius(set_tab[set_page], 10, 0);
+}
+
 static void settings_render(void)
 {
     lv_obj_set_style_bg_color(set_scr, th->bg, 0);
@@ -693,6 +726,7 @@ static void settings_render(void)
     lv_obj_set_style_bg_color(vol_bar, th->track, 0);
     lv_obj_set_style_bg_color(vol_bar_fill, th->ok, 0);
     set_bar(vol_bar, vol_bar_fill, snd_vol * 10);
+    focus_render();
 }
 
 static void settings_close(void)
@@ -882,7 +916,7 @@ static void build_settings(void)
     lbl_rb_cnt = mk_label_w(rb_scr, &ui_font_num54, 0, 162, UI_W, LV_TEXT_ALIGN_CENTER);
     lv_obj_set_style_text_color(lbl_rb_cnt, lv_color_hex(0x22D37A), 0);
     l = mk_label_w(rb_scr, &ui_font_sm12, 0, 220, UI_W, LV_TEXT_ALIGN_CENTER);
-    lv_label_set_text(l, "Chạm màn hình để huỷ");
+    lv_label_set_text(l, "Chạm màn hình hoặc bấm BOOT để huỷ");
     lv_obj_set_style_text_color(l, lv_color_hex(0x8AA0B4), 0);
     show(rb_scr, false);
     rb_tmr = lv_timer_create(rb_tmr_cb, 1000, NULL);
@@ -895,6 +929,7 @@ static void build_settings(void)
 static void settings_open(void)
 {
     set_page = 0;
+    set_focus = -1;
     show(rb_scr, false);
     settings_render();
     show(set_scr, true);
@@ -916,6 +951,32 @@ void ui_open_settings_page(int page) { settings_open(); set_page = page ? 1 : 0;
 void ui_set_source(int s) { src = s == UI_SRC_GOFA ? UI_SRC_GOFA : UI_SRC_WAZE; render_standby(); }
 void ui_set_source_hook(void (*cb)(int)) { source_cb = cb; }
 void ui_test_switch(int want) { rb_start(want); }
+
+bool ui_settings_key(int key)
+{
+    if (!ui_settings_shown()) return false;
+    lv_timer_reset(set_tmr);
+    if (shown(rb_scr)) { rb_cancel(); ui_toast("Đã huỷ"); return true; }   /* dang dem khoi dong lai: bam la huy */
+    lv_obj_t *it[6];
+    int n = focus_items(it);
+    if (key == UI_KEY_NEXT) {
+        set_focus = set_focus < 0 ? 1 : (set_focus + 1) % n;       /* lan dau: nhay vao muc dau tien cua trang */
+        settings_render();
+        beep(1);
+        return true;
+    }
+    if (set_focus < 0) set_focus = 1;
+    lv_obj_t *o = it[set_focus < n ? set_focus : n - 1];
+    if (o == set_tab[set_page]) {                                  /* o tab: doi trang, khung chon o lai tab */
+        set_page = !set_page;
+        set_focus = 0;
+        settings_render();
+        beep(1);
+        return true;
+    }
+    lv_obj_send_event(o, LV_EVENT_CLICKED, NULL);                  /* nhu cham vao muc dang chon */
+    return true;
+}
 
 /* O logo doi tac (tam thoi ve bang chu: doi file logo chinh thuc). */
 lv_obj_t *ui_partner_tile(lv_obj_t *parent, int source, int size)

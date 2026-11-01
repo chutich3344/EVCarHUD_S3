@@ -69,7 +69,7 @@ void ui_cycle_mode(void);
 void ui_set_ambient(int dark);                         /* 1 toi, 0 sang, -1 khong co cam bien */
 void ui_set_mode_hook(void (*cb)(int mode));           /* nguoi dung doi che do: de luu NVS */
 void ui_set_night_hook(void (*cb)(bool night));        /* giao dien vua doi sang Ngay/Dem: board chinh den nen */
-void ui_rotate(void);                                  /* xoay 180 do (bam BOOT 2 lan) */
+void ui_rotate(void);                                  /* xoay 180 do (bam BOOT 2 lan khi khong mo cai dat; giu BOOT 1-3 s roi tha = mo cai dat) */
 void ui_set_rotate_hook(void (*cb)(void));             /* bam BOOT 2 lan: board xoay 180 do */
 void ui_set_level_hook(void (*cb)(int level));         /* UI_LEVEL_*: board bat den LED / loa */
 void ui_toast(const char *text);
@@ -81,6 +81,8 @@ void ui_open_settings(void);                           /* mo man cai dat am luon
 void ui_open_settings_page(int page);                  /* 0 = Am thanh, 1 = Ket noi */
 void ui_set_source(int source);                        /* nguon da luu (NVS), UI_SRC_* */
 void ui_set_source_hook(void (*cb)(int source));       /* nguoi dung doi nguon (sau 3 giay): luu NVS + khoi dong lai */
+enum { UI_KEY_NEXT = 0, UI_KEY_OK = 1 };
+bool ui_settings_key(int key);                         /* nut BOOT khi cai dat dang mo: 1 lan = muc ke, 2 lan = chon. false = cai dat dang dong */
 void ui_test_switch(int source);                       /* chi de chup anh xem truoc: man dem khoi dong lai */
 void ui_set_sound(bool on, int volume);                /* gia tri da luu (NVS), volume 10..100 */
 void ui_set_beep_hook(void (*cb)(int times));          /* giao dien muon phat n tieng tit */

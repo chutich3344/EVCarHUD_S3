@@ -11,7 +11,8 @@
 
 #define POLL_MS 20
 #define LONG_MS 3000
-#define DOUBLE_MS 400                                              /* 2 lan bam cach nhau toi da 0,4 s: xoay */
+#define DOUBLE_MS 400                                              /* 2 lan bam cach nhau toi da 0,4 s */
+#define SET_MS 1000                                                /* giu 1-3 s roi tha: mo cai dat */
 
 static const char *TAG = "nut";
 
@@ -38,19 +39,24 @@ static void btn_task(void *arg)
             }
             continue;
         }
-        if (held >= 40 && !fired) {                                /* bam nha (loc rung 40 ms) */
-            if (since >= 0) {                                      /* lan bam thu 2: xoay man hinh */
+        if (held >= SET_MS && !fired) {                            /* giu 1-3 s roi tha: mo cai dat */
+            since = -1;
+            board_ui_lock();
+            if (!ui_settings_shown()) ui_open_settings();
+            board_ui_unlock();
+        } else if (held >= 40 && !fired) {                         /* bam nha (loc rung 40 ms) */
+            if (since >= 0) {                                      /* lan bam thu 2: cai dat = chon, ngoai = xoay */
                 since = -1;
                 board_ui_lock();
-                ui_rotate();
+                if (!ui_settings_key(UI_KEY_OK)) ui_rotate();
                 board_ui_unlock();
             } else {
                 since = 0;                                         /* doi xem co lan bam thu 2 khong */
             }
-        } else if (since >= 0 && (since += POLL_MS) > DOUBLE_MS) { /* chi bam 1 lan: doi Ngay/Dem */
+        } else if (since >= 0 && (since += POLL_MS) > DOUBLE_MS) { /* chi bam 1 lan: cai dat = muc ke, ngoai = Ngay/Dem */
             since = -1;
             board_ui_lock();
-            ui_cycle_mode();
+            if (!ui_settings_key(UI_KEY_NEXT)) ui_cycle_mode();
             board_ui_unlock();
         }
         held = 0;

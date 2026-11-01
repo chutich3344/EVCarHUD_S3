@@ -77,5 +77,19 @@ int main(int argc, char **argv)
         snprintf(p, sizeof p, "%s/buoc_%02d.bmp", dir, i); save_bmp(p);
         run(300);
     }
+
+    demo_stop();
+    run(400);
+    /* Nut BOOT trong cai dat: 1 lan = muc ke (khung vang), 2 lan = chon */
+    ui_open_settings();
+    static const int keys[] = {UI_KEY_NEXT, UI_KEY_NEXT, UI_KEY_NEXT, UI_KEY_NEXT, UI_KEY_OK, UI_KEY_NEXT, UI_KEY_NEXT};
+    for (size_t i = 0; i < sizeof keys / sizeof keys[0]; i++) {
+        ui_settings_key(keys[i]);
+        run(200);
+        snprintf(p, sizeof p, "%s/nut_%02d.bmp", dir, (int)i); save_bmp(p);
+    }
+    ui_settings_key(UI_KEY_OK);
+    run(200);
+    snprintf(p, sizeof p, "%s/nut_99.bmp", dir); save_bmp(p);
     return 0;
 }
