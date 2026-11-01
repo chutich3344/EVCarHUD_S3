@@ -119,6 +119,8 @@ static char s_gofa_name[16];
 static volatile bool s_gofa;
 typedef struct { uint16_t chr, len; uint8_t d[244]; } gofa_pkt_t;
 static QueueHandle_t s_gofa_q;
+static volatile uint16_t s_mtu = 23;
+static uint16_t s_gofa_cnt[4];            /* so goi da nhan: bien bao, toc do, dan duong, gio */
 #define EV_GUP   (1u << 5)
 #define EV_GDOWN (1u << 6)
 
@@ -185,8 +187,10 @@ static void gofa_setup(void)                                       /* ten + UUID
 
 static void gofa_show(const char *state, const char *last)       /* task ble: dai GOFA duoi man hinh */
 {
-    char head[64];
-    snprintf(head, sizeof head, "GOFA: %s", state);
+    (void)state;
+    char head[96];
+    snprintf(head, sizeof head, "GOFA · MTU %u · biển %u · tốc %u · dẫn %u · giờ %u", s_mtu, s_gofa_cnt[0], s_gofa_cnt[1],
+             s_gofa_cnt[2], s_gofa_cnt[3]);
     ui_gofa_debug(head, last);
 }
 
@@ -195,6 +199,8 @@ static void gofa_drain(void)
     gofa_pkt_t pk;
     while (s_gofa_q && xQueueReceive(s_gofa_q, &pk, 0) == pdTRUE) {
         char sum[96], last[200];
+        int ci = pk.chr == 0x3030 ? 0 : pk.chr == 0x3031 ? 1 : pk.chr == 0x3038 ? 2 : pk.chr == 0x3039 ? 3 : -1;
+        if (ci >= 0) s_gofa_cnt[ci]++;
         board_ui_lock();
         gofa_handle(pk.chr, pk.d, pk.len, sum, sizeof sum);
         int k = snprintf(last, sizeof last, "%s\n", sum);
@@ -253,7 +259,14 @@ static int gap_event(struct ble_gap_event *ev, void *arg)
         if (ev->connect.status == 0) {
             s_conn = ev->connect.conn_handle;
             ESP_LOGI(TAG, "dien thoai ket noi Bluetooth: cho dien thoai doc dich vu HLP va bat thong bao RX");
-            if (s_gofa) wake(EV_GUP);
+            if (s_gofa) {
+                /* App Gofa bo ban tin dan duong neu vuot gioi han 1 lan ghi (MTU mac dinh 23 -> 20 byte):
+                 * HUD xin MTU lon ngay khi noi. */
+                int mrc = ble_gattc_exchange_mtu(s_conn, NULL, NULL);
+                ESP_LOGI(TAG, "GOFA: xin MTU %d (rc=%d)", CONFIG_BT_NIMBLE_ATT_PREFERRED_MTU, mrc);
+                s_mtu = 23;
+                wake(EV_GUP);
+            }
         } else {
             advertise();
         }
@@ -282,6 +295,8 @@ static int gap_event(struct ble_gap_event *ev, void *arg)
         break;
     case BLE_GAP_EVENT_MTU:
         ESP_LOGI(TAG, "MTU %d", ev->mtu.value);
+        s_mtu = ev->mtu.value;
+        if (s_gofa) wake(EV_SNIFF);
         break;
     default:
         break;
@@ -407,10 +422,17 @@ static void ble_task(void *arg)
             bool up = s_conn != BLE_HS_CONN_HANDLE_NONE;
             board_ui_lock();
             gofa_connected(up);
-            gofa_show(up ? "đã kết nối app Gofa" : "mất kết nối app Gofa", "");
+            gofa_show("", up ? "Đã kết nối app Gofa" : "Mất kết nối app Gofa");
             board_ui_unlock();
         }
-        if (s_gofa && (ev & EV_SNIFF)) gofa_drain();
+        if (s_gofa && (ev & EV_SNIFF)) {
+            if (s_gofa_q && uxQueueMessagesWaiting(s_gofa_q) == 0) {   /* chi doi MTU: cap nhat dai */
+                board_ui_lock();
+                gofa_show("", "");
+                board_ui_unlock();
+            }
+            gofa_drain();
+        }
         size_t n;
         while ((n = xStreamBufferReceive(s_rx_sb, rx, sizeof rx, 0)) > 0) {
             if (s_linked) link_rx(LINK_BLE, rx, n, false);        /* ghep dong theo LF nam trong bo giai ma */
