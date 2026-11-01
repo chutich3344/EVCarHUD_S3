@@ -144,7 +144,7 @@ static int sniff_access(uint16_t conn, uint16_t attr, struct ble_gatt_access_ctx
     return 0;
 }
 
-#define SNIFF_CHR(u, h) {.uuid = &(u).u, .access_cb = sniff_access, .val_handle = (h), \
+#define SNIFF_CHR(id, h) {.uuid = &(id).u, .access_cb = sniff_access, .val_handle = (h), \
     .flags = BLE_GATT_CHR_F_READ | BLE_GATT_CHR_F_WRITE | BLE_GATT_CHR_F_WRITE_NO_RSP | BLE_GATT_CHR_F_NOTIFY | BLE_GATT_CHR_F_INDICATE}
 static const struct ble_gatt_svc_def s_sniff_svcs[] = {
     {.type = BLE_GATT_SVC_TYPE_PRIMARY, .uuid = &UUID_NUS.u, .characteristics = (struct ble_gatt_chr_def[]) {
