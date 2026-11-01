@@ -148,8 +148,8 @@ static int gofa_access(uint16_t conn, uint16_t attr, struct ble_gatt_access_ctxt
     return 0;                                                      /* WRITE co phan hoi: tra loi ngay, giai ma sau */
 }
 
-#define GOFA_W(u) {.uuid = &(u).u, .access_cb = gofa_access, .flags = BLE_GATT_CHR_F_WRITE | BLE_GATT_CHR_F_WRITE_NO_RSP}
-#define GOFA_R(u) {.uuid = &(u).u, .access_cb = gofa_access, .flags = BLE_GATT_CHR_F_READ}
+#define GOFA_W(id) {.uuid = &(id).u, .access_cb = gofa_access, .flags = BLE_GATT_CHR_F_WRITE | BLE_GATT_CHR_F_WRITE_NO_RSP}
+#define GOFA_R(id) {.uuid = &(id).u, .access_cb = gofa_access, .flags = BLE_GATT_CHR_F_READ}
 static const struct ble_gatt_svc_def s_gofa_svcs[] = {
     {.type = BLE_GATT_SVC_TYPE_PRIMARY, .uuid = &UUID_GOFA.u, .characteristics = (struct ble_gatt_chr_def[]) {
         GOFA_W(G_SIGN), GOFA_W(G_SPEED), GOFA_W(G_SOUND), GOFA_W(G_OVER), GOFA_W(G_NAV), GOFA_W(G_TIME), {0}}},
