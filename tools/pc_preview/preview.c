@@ -81,6 +81,7 @@ int main(int argc, char **argv)
     demo_stop();
     run(400);
     /* Nut BOOT trong cai dat: 1 lan = muc ke (khung vang), 2 lan = chon */
+    ui_set_mac("A0:B7:65:2C:4F:A6");
     ui_open_settings();
     static const int keys[] = {UI_KEY_NEXT, UI_KEY_NEXT, UI_KEY_NEXT, UI_KEY_NEXT, UI_KEY_OK, UI_KEY_NEXT, UI_KEY_NEXT};
     for (size_t i = 0; i < sizeof keys / sizeof keys[0]; i++) {

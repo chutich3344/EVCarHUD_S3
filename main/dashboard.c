@@ -133,7 +133,9 @@ static int set_page, src = UI_SRC_WAZE, rb_src, rb_left;
 static lv_timer_t *rb_tmr;
 static void (*source_cb)(int);
 /* nut BOOT trong cai dat: bam 1 lan = sang muc ke, bam 2 lan = chon (cam ung dien tro kho bam) */
-static int set_focus = -1;                  /* -1 = chua dung nut BOOT: khong ve khung chon */
+static int set_focus = -1;
+static lv_obj_t *lbl_mac;                   /* MAC Bluetooth: de dang ky tren hud.platform.gofa.vn */
+static char mac_txt[24];                  /* -1 = chua dung nut BOOT: khong ve khung chon */
 
 /* ======================= tien ich ======================= */
 static lv_obj_t *mk_box(lv_obj_t *p, int x, int y, int w, int h)
@@ -697,6 +699,8 @@ static void settings_render(void)
         lv_label_set_text(lbl_src_st[i], on ? "Đang dùng" : "Bấm để chọn");
         lv_obj_set_style_text_color(lbl_src_st[i], on ? th->ok : th->mut, 0);
     }
+    lv_label_set_text_fmt(lbl_mac, "MAC %s", mac_txt[0] ? mac_txt : "--");
+    lv_obj_set_style_text_color(lbl_mac, th->mut, 0);
     show(page_snd, set_page == 0);
     show(page_src, set_page == 1);
     lv_color_t on_c = th->ok;
@@ -889,7 +893,7 @@ static void build_settings(void)
 
     /* trang Ket noi: 2 the to Waze Mod | GOFA */
     static const char *const names[2] = {"Waze Mod", "GOFA"};
-    int cw = (UI_W - 24 - 8) / 2, ch = UI_H - 44 - 8 - 10;
+    int cw = (UI_W - 24 - 8) / 2, ch = UI_H - 44 - 8 - 30;
     for (int i = 0; i < 2; i++) {
         src_card[i] = mk_card(page_src, 12 + i * (cw + 8), 8, cw, ch, 18);
         lv_obj_add_flag(src_card[i], LV_OBJ_FLAG_CLICKABLE);
@@ -901,8 +905,9 @@ static void build_settings(void)
         lv_label_set_text(n, names[i]);
         lv_obj_set_style_text_color(n, lv_color_white(), 0);
         lv_obj_set_user_data(src_card[i], n);
-        lbl_src_st[i] = mk_label_w(src_card[i], &ui_font_txt14, 0, 132, cw - 2, LV_TEXT_ALIGN_CENTER);
+        lbl_src_st[i] = mk_label_w(src_card[i], &ui_font_txt14, 0, 126, cw - 2, LV_TEXT_ALIGN_CENTER);
     }
+    lbl_mac = mk_label_w(page_src, &ui_font_mono14, 0, 8 + ch + 4, UI_W, LV_TEXT_ALIGN_CENTER);
 
     /* doi nguon: "Chuyen sang GOFA", dem 3 giay roi khoi dong lai; cham de huy */
     rb_scr = mk_box(set_scr, 0, 0, UI_W, UI_H);
@@ -951,6 +956,7 @@ void ui_open_settings_page(int page) { settings_open(); set_page = page ? 1 : 0;
 void ui_set_source(int s) { src = s == UI_SRC_GOFA ? UI_SRC_GOFA : UI_SRC_WAZE; render_standby(); }
 void ui_set_source_hook(void (*cb)(int)) { source_cb = cb; }
 void ui_test_switch(int want) { rb_start(want); }
+void ui_set_mac(const char *mac) { snprintf(mac_txt, sizeof mac_txt, "%s", mac ? mac : ""); }
 
 bool ui_settings_key(int key)
 {

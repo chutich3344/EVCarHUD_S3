@@ -8,6 +8,7 @@
 #include "esp_app_desc.h"
 #include "esp_heap_caps.h"
 #include "esp_log.h"
+#include "esp_mac.h"
 #include "esp_system.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -214,6 +215,15 @@ void app_main(void)
     ui_set_sound_hook(on_sound);
     ui_set_source(settings_get_source());
     ui_set_source_hook(on_source);
+    {
+        uint8_t a[6];
+        if (esp_read_mac(a, ESP_MAC_BT) == ESP_OK) {                 /* MAC Bluetooth (= MAC WiFi + 2): dang ky tren GOFA */
+            char t[20];
+            snprintf(t, sizeof t, "%02X:%02X:%02X:%02X:%02X:%02X", a[0], a[1], a[2], a[3], a[4], a[5]);
+            ui_set_mac(t);
+            ESP_LOGI(TAG, "MAC Bluetooth: %s", t);
+        }
+    }
     ui_set_rotate_hook(on_rotate);
     link_init();                                             /* bo giai ma HLP + chon duong truyen */
     {
