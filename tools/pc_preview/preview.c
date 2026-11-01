@@ -81,6 +81,11 @@ int main(int argc, char **argv)
     demo_stop();
     run(400);
     /* Nut BOOT trong cai dat: 1 lan = muc ke (khung vang), 2 lan = chon */
+    ui_set_source(UI_SRC_GOFA);
+    ui_gofa_debug("GOFA: đã kết nối Bluetooth · 3 gói · 0xffe1 12b", "AA 55 01 0C 00 32 1E 00 00 00 7F 0D\n.U...2......");
+    run(200);
+    snprintf(p, sizeof p, "%s/gofa_dbg.bmp", dir); save_bmp(p);
+    ui_set_source(UI_SRC_WAZE);
     ui_set_mac("A0:B7:65:2C:4F:A6");
     ui_open_settings();
     static const int keys[] = {UI_KEY_NEXT, UI_KEY_NEXT, UI_KEY_NEXT, UI_KEY_NEXT, UI_KEY_OK, UI_KEY_NEXT, UI_KEY_NEXT};

@@ -134,7 +134,8 @@ static void (*source_cb)(int);
 /* nut BOOT trong cai dat: bam 1 lan = sang muc ke, bam 2 lan = chon (cam ung dien tro kho bam) */
 static int set_focus = -1;
 static lv_obj_t *lbl_mac;                   /* MAC Bluetooth: de dang ky tren hud.platform.gofa.vn */
-static char mac_txt[24];                  /* -1 = chua dung nut BOOT: khong ve khung chon */
+static char mac_txt[24];
+static lv_obj_t *gofa_dbg, *lbl_gofa_dbg[2];   /* che do GOFA: goi Bluetooth vua nhan (doan giao thuc) */                  /* -1 = chua dung nut BOOT: khong ve khung chon */
 
 /* ======================= tien ich ======================= */
 static lv_obj_t *mk_box(lv_obj_t *p, int x, int y, int w, int h)
@@ -941,6 +942,27 @@ void ui_open_settings_page(int page) { settings_open(); set_page = page ? 1 : 0;
 void ui_set_source(int s) { src = s == UI_SRC_GOFA ? UI_SRC_GOFA : UI_SRC_WAZE; render_standby(); }
 void ui_set_source_hook(void (*cb)(int)) { source_cb = cb; }
 void ui_test_switch(int want) { rb_start(want); }
+void ui_gofa_debug(const char *state, const char *last)
+{
+    if (!gofa_dbg) {
+        gofa_dbg = mk_box(scr, 0, UI_H - 52, UI_W, 52);
+        lv_obj_set_style_bg_color(gofa_dbg, lv_color_hex(0x05080C), 0);
+        lv_obj_set_style_bg_opa(gofa_dbg, LV_OPA_COVER, 0);
+        lbl_gofa_dbg[0] = mk_label_w(gofa_dbg, &ui_font_sm12, 6, 2, UI_W - 12, LV_TEXT_ALIGN_LEFT);
+        lv_obj_set_style_text_color(lbl_gofa_dbg[0], lv_color_hex(0x22D37A), 0);
+        lbl_gofa_dbg[1] = mk_label_w(gofa_dbg, &ui_font_mono14, 6, 18, UI_W - 12, LV_TEXT_ALIGN_LEFT);
+        lv_obj_set_style_text_color(lbl_gofa_dbg[1], lv_color_white(), 0);
+        lv_label_set_long_mode(lbl_gofa_dbg[1], LV_LABEL_LONG_CLIP);
+        lv_obj_set_height(lbl_gofa_dbg[1], 34);
+    }
+    lv_label_set_text(lbl_gofa_dbg[0], state ? state : "");
+    lv_label_set_text(lbl_gofa_dbg[1], last && last[0] ? last : "Chờ app GOFA gửi dữ liệu...");
+    show(gofa_dbg, true);
+    lv_obj_move_foreground(gofa_dbg);
+    if (shown(set_scr)) lv_obj_move_foreground(set_scr);            /* cai dat van nam tren cung */
+    lv_obj_move_foreground(toast);
+}
+
 void ui_set_mac(const char *mac) { snprintf(mac_txt, sizeof mac_txt, "%s", mac ? mac : ""); }
 
 bool ui_settings_key(int key)

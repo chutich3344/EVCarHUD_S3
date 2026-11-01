@@ -21,6 +21,9 @@
 #include "services/gatt/ble_svc_gatt.h"
 
 #include "link.h"
+#include "board.h"
+#include "dashboard.h"
+#include "settings.h"
 
 /* HLP/1 qua BLE GATT (tai lieu Waze Mod, muc 8):
  *   dich vu  8a7e0001-4d6e-4c48-9a9d-484c504c0001
@@ -41,6 +44,7 @@ static const char CAPS[] = "{\"v\":1,\"caps\":{\"transport\":\"ble\",\"maxFrame\
 #define EV_TX   (1u << 1)
 #define EV_UP   (1u << 2)
 #define EV_DOWN (1u << 3)
+#define EV_SNIFF (1u << 4)
 
 static const char *TAG = "ble";
 static TaskHandle_t s_task;
@@ -96,6 +100,89 @@ static const struct ble_gatt_svc_def s_svcs[] = {
     {0},
 };
 
+
+/* ===== Che do GOFA: chua co tai lieu giao thuc Bluetooth cua GOFA =====
+ * Mo them cac dich vu "UART qua BLE" hay gap (Nordic UART, FFE0/FFE1, FFF0/FFF1/FFF2). Moi lan app GOFA ghi vao bat ky
+ * dac tinh nao: ghi log (hex) va hien len man hinh, de doan giao thuc. */
+#define U16(x) BLE_UUID16_INIT(x)
+#define NUS(n) BLE_UUID128_INIT(0x9e, 0xca, 0xdc, 0x24, 0x0e, 0xe5, 0xa9, 0xe0, 0x93, 0xf3, 0xa3, 0xb5, (n), 0x00, 0x40, 0x6e)
+static const ble_uuid128_t UUID_NUS = NUS(0x01), UUID_NUS_RX = NUS(0x02), UUID_NUS_TX = NUS(0x03);
+static const ble_uuid16_t UUID_FFE0 = U16(0xFFE0), UUID_FFE1 = U16(0xFFE1);
+static const ble_uuid16_t UUID_FFF0 = U16(0xFFF0), UUID_FFF1 = U16(0xFFF1), UUID_FFF2 = U16(0xFFF2);
+static uint16_t s_sniff_h[4];
+static portMUX_TYPE s_sniff_mux = portMUX_INITIALIZER_UNLOCKED;
+static uint8_t s_sniff[40];
+static uint16_t s_sniff_len, s_sniff_full;
+static char s_sniff_uuid[12];
+static uint32_t s_sniff_n;
+static volatile bool s_gofa;
+
+static int sniff_access(uint16_t conn, uint16_t attr, struct ble_gatt_access_ctxt *ctxt, void *arg)
+{
+    (void)conn;
+    (void)arg;
+    char us[BLE_UUID_STR_LEN];
+    ble_uuid_to_str(ctxt->chr->uuid, us);
+    if (ctxt->op == BLE_GATT_ACCESS_OP_READ_CHR) {
+        ESP_LOGI(TAG, "GOFA doc %s (handle %u)", us, attr);
+        return 0;
+    }
+    if (ctxt->op != BLE_GATT_ACCESS_OP_WRITE_CHR) return BLE_ATT_ERR_UNLIKELY;
+    uint8_t buf[256];
+    uint16_t n = 0;
+    ble_hs_mbuf_to_flat(ctxt->om, buf, sizeof buf, &n);
+    ESP_LOGI(TAG, "GOFA ghi %s (handle %u), %u byte:", us, attr, n);
+    ESP_LOG_BUFFER_HEXDUMP(TAG, buf, n, ESP_LOG_INFO);
+    taskENTER_CRITICAL(&s_sniff_mux);
+    s_sniff_full = n;
+    s_sniff_len = n < sizeof s_sniff ? n : sizeof s_sniff;
+    memcpy(s_sniff, buf, s_sniff_len);
+    snprintf(s_sniff_uuid, sizeof s_sniff_uuid, "%.8s", us);      /* "0xffe1" hoac "6e400002" */
+    s_sniff_n++;
+    taskEXIT_CRITICAL(&s_sniff_mux);
+    wake(EV_SNIFF);
+    return 0;
+}
+
+#define SNIFF_CHR(u, h) {.uuid = &(u).u, .access_cb = sniff_access, .val_handle = (h), \
+    .flags = BLE_GATT_CHR_F_READ | BLE_GATT_CHR_F_WRITE | BLE_GATT_CHR_F_WRITE_NO_RSP | BLE_GATT_CHR_F_NOTIFY | BLE_GATT_CHR_F_INDICATE}
+static const struct ble_gatt_svc_def s_sniff_svcs[] = {
+    {.type = BLE_GATT_SVC_TYPE_PRIMARY, .uuid = &UUID_NUS.u, .characteristics = (struct ble_gatt_chr_def[]) {
+        SNIFF_CHR(UUID_NUS_RX, NULL), SNIFF_CHR(UUID_NUS_TX, &s_sniff_h[0]), {0}}},
+    {.type = BLE_GATT_SVC_TYPE_PRIMARY, .uuid = &UUID_FFE0.u, .characteristics = (struct ble_gatt_chr_def[]) {
+        SNIFF_CHR(UUID_FFE1, &s_sniff_h[1]), {0}}},
+    {.type = BLE_GATT_SVC_TYPE_PRIMARY, .uuid = &UUID_FFF0.u, .characteristics = (struct ble_gatt_chr_def[]) {
+        SNIFF_CHR(UUID_FFF1, &s_sniff_h[2]), SNIFF_CHR(UUID_FFF2, &s_sniff_h[3]), {0}}},
+    {0},
+};
+
+static void gofa_show(const char *state)                          /* task ble: hien trang thai + goi vua nhan */
+{
+    char last[160] = "";
+    uint8_t b[40];
+    uint16_t n, full;
+    uint32_t cnt;
+    char u[12];
+    taskENTER_CRITICAL(&s_sniff_mux);
+    n = s_sniff_len; full = s_sniff_full; cnt = s_sniff_n;
+    memcpy(b, s_sniff, n);
+    memcpy(u, s_sniff_uuid, sizeof u);
+    taskEXIT_CRITICAL(&s_sniff_mux);
+    if (cnt) {
+        int k = 0;
+        for (int i = 0; i < n && i < 12; i++) k += snprintf(last + k, sizeof last - k, i ? " %02X" : "%02X", b[i]);
+        if (k < (int)sizeof last - 3) k += snprintf(last + k, sizeof last - k, "\n");
+        for (int i = 0; i < n && i < 36 && k < (int)sizeof last - 2; i++) last[k++] = b[i] >= 0x20 && b[i] < 0x7F ? (char)b[i] : '.';
+        last[k] = 0;
+    }
+    char head[96];
+    if (cnt) snprintf(head, sizeof head, "GOFA: %s · %lu gói · %s %ub", state, (unsigned long)cnt, u, full);
+    else snprintf(head, sizeof head, "GOFA: %s · chưa có gói", state);
+    board_ui_lock();
+    ui_gofa_debug(head, last);
+    board_ui_unlock();
+}
+
 static void advertise(void)
 {
     const char *name = ble_svc_gap_device_name();
@@ -145,6 +232,7 @@ static int gap_event(struct ble_gap_event *ev, void *arg)
         if (ev->connect.status == 0) {
             s_conn = ev->connect.conn_handle;
             ESP_LOGI(TAG, "dien thoai ket noi Bluetooth: cho dien thoai doc dich vu HLP va bat thong bao RX");
+            if (s_gofa) wake(EV_SNIFF);
         } else {
             advertise();
         }
@@ -153,13 +241,15 @@ static int gap_event(struct ble_gap_event *ev, void *arg)
         ESP_LOGI(TAG, "dien thoai ngat Bluetooth (ly do %d)", ev->disconnect.reason);
         s_conn = BLE_HS_CONN_HANDLE_NONE;
         s_state = 1;
-        wake(EV_DOWN);
+        wake(EV_DOWN | EV_SNIFF);
         advertise();
         break;
     case BLE_GAP_EVENT_ADV_COMPLETE:
         advertise();
         break;
     case BLE_GAP_EVENT_SUBSCRIBE:
+        ESP_LOGI(TAG, "dien thoai %s thong bao handle %u", ev->subscribe.cur_notify || ev->subscribe.cur_indicate ? "bat" : "tat",
+                 ev->subscribe.attr_handle);
         if (ev->subscribe.attr_handle == s_rx_handle) {           /* dien thoai bat/tat nhan thong bao tren RX */
             if (ev->subscribe.cur_notify) {
                 s_state = 2;
@@ -248,12 +338,16 @@ static bool bt_up(void)
     ble_svc_gatt_init();
     int rc = ble_gatts_count_cfg(s_svcs);
     if (rc == 0) rc = ble_gatts_add_svcs(s_svcs);
+    s_gofa = settings_get_source() == UI_SRC_GOFA;
+    if (s_gofa && rc == 0) rc = ble_gatts_count_cfg(s_sniff_svcs);
+    if (s_gofa && rc == 0) rc = ble_gatts_add_svcs(s_sniff_svcs);
     if (rc == 0) rc = ble_svc_gap_device_name_set(CONFIG_EVCARHUD_BLE_NAME);
     if (rc != 0) {
         ESP_LOGW(TAG, "dang ky dich vu GATT that bai (rc=%d)", rc);
         return false;
     }
     nimble_port_freertos_init(host_task);
+    if (s_gofa) wake(EV_SNIFF);
     for (int i = 0; i < 50 && !s_synced; i++) vTaskDelay(pdMS_TO_TICKS(100));
     if (!s_synced) {
         ESP_LOGW(TAG, "bo dieu khien Bluetooth khong tra loi: bo qua Bluetooth");
@@ -288,6 +382,7 @@ static void ble_task(void *arg)
             s_linked = true;
             link_up(LINK_BLE, ble_tx);                            /* HUD gui `dev` truoc (qua ble_tx -> hang doi) */
         }
+        if ((ev & EV_SNIFF) && s_gofa) gofa_show(s_conn != BLE_HS_CONN_HANDLE_NONE ? "đã kết nối Bluetooth" : "chờ điện thoại");
         size_t n;
         while ((n = xStreamBufferReceive(s_rx_sb, rx, sizeof rx, 0)) > 0) {
             if (s_linked) link_rx(LINK_BLE, rx, n, false);        /* ghep dong theo LF nam trong bo giai ma */

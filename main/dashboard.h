@@ -83,6 +83,7 @@ void ui_set_source(int source);                        /* nguon da luu (NVS), UI
 void ui_set_source_hook(void (*cb)(int source));       /* nguoi dung doi nguon: luu NVS (chay nguon moi sau khi bam RST) */
 enum { UI_KEY_NEXT = 0, UI_KEY_OK = 1 };
 bool ui_settings_key(int key);                         /* nut BOOT khi cai dat dang mo: 1 lan = muc ke, 2 lan = chon. false = cai dat dang dong */
+void ui_gofa_debug(const char *state, const char *last);   /* che do GOFA: dai duoi man hinh hien goi Bluetooth vua nhan */
 void ui_set_mac(const char *mac);                      /* MAC Bluetooth "AA:BB:.." hien o trang Ket noi (dang ky GOFA) */
 void ui_test_switch(int source);                       /* chi de chup anh xem truoc: man "Da chon" + MAC */
 void ui_set_sound(bool on, int volume);                /* gia tri da luu (NVS), volume 10..100 */
