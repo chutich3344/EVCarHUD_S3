@@ -155,9 +155,13 @@ static void on_nav(const pb_t *m, char *sum, size_t sn)
     /* state (1), current_road_name (2), next_road_name (3), maneuver (4), distance_m (5); state 2 = dang dan duong */
     pb_str(m, 2, road_now, sizeof road_now);
     pb_str(m, 3, road_next, sizeof road_next);
-    nav_on = m->v[1] == 2;
-    nav_trn = nav_on ? turn_for_maneuver(m->v[4]) : 0;
-    nav_dst = nav_on && m->has[5] ? (int)m->v[5] : -1;
+    /* state 2 = dang dan duong; app co the bo truong state (proto3 bo gia tri 0) nen co huong re
+     * hoac khoang cach > 0 cung coi la dang dan duong */
+    uint32_t mv = m->has[4] ? m->v[4] : 0;
+    int dst = m->has[5] ? (int)m->v[5] : -1;
+    nav_on = m->v[1] == 2 || mv > 0 || dst > 0;
+    nav_trn = nav_on ? turn_for_maneuver(mv) : 0;
+    nav_dst = nav_on ? dst : -1;
     if (nav_on && !nav_trn) nav_trn = 1;                           /* chua xac dinh huong: hien di thang */
     push_nav();
     ui_set_route("", 0, 0);
