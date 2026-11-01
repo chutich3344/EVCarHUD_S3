@@ -24,6 +24,10 @@
 #include "board.h"
 #include "dashboard.h"
 #include "settings.h"
+#include "gofa.h"
+#include "esp_app_desc.h"
+#include "esp_mac.h"
+#include "freertos/queue.h"
 
 /* HLP/1 qua BLE GATT (tai lieu Waze Mod, muc 8):
  *   dich vu  8a7e0001-4d6e-4c48-9a9d-484c504c0001
@@ -44,7 +48,7 @@ static const char CAPS[] = "{\"v\":1,\"caps\":{\"transport\":\"ble\",\"maxFrame\
 #define EV_TX   (1u << 1)
 #define EV_UP   (1u << 2)
 #define EV_DOWN (1u << 3)
-#define EV_SNIFF (1u << 4)
+#define EV_SNIFF (1u << 4)                /* GOFA: co goi moi trong hang doi */
 
 static const char *TAG = "ble";
 static TaskHandle_t s_task;
@@ -101,86 +105,103 @@ static const struct ble_gatt_svc_def s_svcs[] = {
 };
 
 
-/* ===== Che do GOFA: chua co tai lieu giao thuc Bluetooth cua GOFA =====
- * Mo them cac dich vu "UART qua BLE" hay gap (Nordic UART, FFE0/FFE1, FFF0/FFF1/FFF2). Moi lan app GOFA ghi vao bat ky
- * dac tinh nao: ghi log (hex) va hien len man hinh, de doan giao thuc. */
+/* ===== Che do GOFA (tai lieu hud.platform.gofa.vn/docs) =====
+ * Quang ba: ten "HUD_xxxx" + Service UUID dinh danh 128 bit "<tien to>-<MAC 12 ky tu hex>" (dat dau tien).
+ * GATT: dich vu GOFA 0x2A60 (app ghi protobuf vao 0x3030..0x3033, 0x3038, 0x3039, WRITE co phan hoi) va
+ * Device Information 0x180A (app doc model / firmware / hardware / ma loi). Giai ma o gofa.c. */
 #define U16(x) BLE_UUID16_INIT(x)
-#define NUS(n) BLE_UUID128_INIT(0x9e, 0xca, 0xdc, 0x24, 0x0e, 0xe5, 0xa9, 0xe0, 0x93, 0xf3, 0xa3, 0xb5, (n), 0x00, 0x40, 0x6e)
-static const ble_uuid128_t UUID_NUS = NUS(0x01), UUID_NUS_RX = NUS(0x02), UUID_NUS_TX = NUS(0x03);
-static const ble_uuid16_t UUID_FFE0 = U16(0xFFE0), UUID_FFE1 = U16(0xFFE1);
-static const ble_uuid16_t UUID_FFF0 = U16(0xFFF0), UUID_FFF1 = U16(0xFFF1), UUID_FFF2 = U16(0xFFF2);
-static uint16_t s_sniff_h[4];
-static portMUX_TYPE s_sniff_mux = portMUX_INITIALIZER_UNLOCKED;
-static uint8_t s_sniff[40];
-static uint16_t s_sniff_len, s_sniff_full;
-static char s_sniff_uuid[12];
-static uint32_t s_sniff_n;
+static const ble_uuid16_t UUID_GOFA = U16(0x2A60), UUID_DIS = U16(0x180A);
+static const ble_uuid16_t UUID_FW = U16(0x2A26), UUID_HW = U16(0x2A27), UUID_MODEL = U16(0x2A24), UUID_ERR = U16(0x2A3F);
+static const ble_uuid16_t G_SIGN = U16(0x3030), G_SPEED = U16(0x3031), G_SOUND = U16(0x3032), G_OVER = U16(0x3033),
+                          G_NAV = U16(0x3038), G_TIME = U16(0x3039);
+static ble_uuid128_t s_gofa_id;           /* Service UUID dinh danh (co MAC) */
+static char s_gofa_name[16];
 static volatile bool s_gofa;
+typedef struct { uint16_t chr, len; uint8_t d[244]; } gofa_pkt_t;
+static QueueHandle_t s_gofa_q;
+#define EV_GUP   (1u << 5)
+#define EV_GDOWN (1u << 6)
 
-static int sniff_access(uint16_t conn, uint16_t attr, struct ble_gatt_access_ctxt *ctxt, void *arg)
+static int gofa_access(uint16_t conn, uint16_t attr, struct ble_gatt_access_ctxt *ctxt, void *arg)
 {
     (void)conn;
+    (void)attr;
     (void)arg;
-    char us[BLE_UUID_STR_LEN];
-    ble_uuid_to_str(ctxt->chr->uuid, us);
+    uint16_t id = ble_uuid_u16(ctxt->chr->uuid);
     if (ctxt->op == BLE_GATT_ACCESS_OP_READ_CHR) {
-        ESP_LOGI(TAG, "GOFA doc %s (handle %u)", us, attr);
-        return 0;
+        const esp_app_desc_t *ad = esp_app_get_description();
+        const char *v = id == 0x2A26 ? (ad ? ad->version : "1.0") : id == 0x2A27 ? "ESP32-2432S028" : id == 0x2A24 ? "EVCarHUD 2.8" : NULL;
+        ESP_LOGI(TAG, "GOFA doc 0x%04X", id);
+        if (v) return os_mbuf_append(ctxt->om, v, strlen(v)) == 0 ? 0 : BLE_ATT_ERR_INSUFFICIENT_RES;
+        static const uint8_t no_err = 0;                           /* ma loi 0x2A3F: 0 = khong loi */
+        return os_mbuf_append(ctxt->om, &no_err, 1) == 0 ? 0 : BLE_ATT_ERR_INSUFFICIENT_RES;
     }
     if (ctxt->op != BLE_GATT_ACCESS_OP_WRITE_CHR) return BLE_ATT_ERR_UNLIKELY;
-    uint8_t buf[256];
-    uint16_t n = 0;
-    ble_hs_mbuf_to_flat(ctxt->om, buf, sizeof buf, &n);
-    ESP_LOGI(TAG, "GOFA ghi %s (handle %u), %u byte:", us, attr, n);
-    ESP_LOG_BUFFER_HEXDUMP(TAG, buf, n, ESP_LOG_INFO);
-    taskENTER_CRITICAL(&s_sniff_mux);
-    s_sniff_full = n;
-    s_sniff_len = n < sizeof s_sniff ? n : sizeof s_sniff;
-    memcpy(s_sniff, buf, s_sniff_len);
-    snprintf(s_sniff_uuid, sizeof s_sniff_uuid, "%.8s", us);      /* "0xffe1" hoac "6e400002" */
-    s_sniff_n++;
-    taskEXIT_CRITICAL(&s_sniff_mux);
-    wake(EV_SNIFF);
-    return 0;
+    gofa_pkt_t pk;
+    pk.chr = id;
+    pk.len = 0;
+    if (ble_hs_mbuf_to_flat(ctxt->om, pk.d, sizeof pk.d, &pk.len) != 0 && OS_MBUF_PKTLEN(ctxt->om) > sizeof pk.d)
+        return BLE_ATT_ERR_INVALID_ATTR_VALUE_LEN;
+    ESP_LOGI(TAG, "GOFA ghi 0x%04X, %u byte", id, pk.len);
+    ESP_LOG_BUFFER_HEX_LEVEL(TAG, pk.d, pk.len, ESP_LOG_INFO);
+    if (s_gofa_q && xQueueSend(s_gofa_q, &pk, 0) == pdTRUE) wake(EV_SNIFF);
+    return 0;                                                      /* WRITE co phan hoi: tra loi ngay, giai ma sau */
 }
 
-#define SNIFF_CHR(id, h) {.uuid = &(id).u, .access_cb = sniff_access, .val_handle = (h), \
-    .flags = BLE_GATT_CHR_F_READ | BLE_GATT_CHR_F_WRITE | BLE_GATT_CHR_F_WRITE_NO_RSP | BLE_GATT_CHR_F_NOTIFY | BLE_GATT_CHR_F_INDICATE}
-static const struct ble_gatt_svc_def s_sniff_svcs[] = {
-    {.type = BLE_GATT_SVC_TYPE_PRIMARY, .uuid = &UUID_NUS.u, .characteristics = (struct ble_gatt_chr_def[]) {
-        SNIFF_CHR(UUID_NUS_RX, NULL), SNIFF_CHR(UUID_NUS_TX, &s_sniff_h[0]), {0}}},
-    {.type = BLE_GATT_SVC_TYPE_PRIMARY, .uuid = &UUID_FFE0.u, .characteristics = (struct ble_gatt_chr_def[]) {
-        SNIFF_CHR(UUID_FFE1, &s_sniff_h[1]), {0}}},
-    {.type = BLE_GATT_SVC_TYPE_PRIMARY, .uuid = &UUID_FFF0.u, .characteristics = (struct ble_gatt_chr_def[]) {
-        SNIFF_CHR(UUID_FFF1, &s_sniff_h[2]), SNIFF_CHR(UUID_FFF2, &s_sniff_h[3]), {0}}},
+#define GOFA_W(u) {.uuid = &(u).u, .access_cb = gofa_access, .flags = BLE_GATT_CHR_F_WRITE | BLE_GATT_CHR_F_WRITE_NO_RSP}
+#define GOFA_R(u) {.uuid = &(u).u, .access_cb = gofa_access, .flags = BLE_GATT_CHR_F_READ}
+static const struct ble_gatt_svc_def s_gofa_svcs[] = {
+    {.type = BLE_GATT_SVC_TYPE_PRIMARY, .uuid = &UUID_GOFA.u, .characteristics = (struct ble_gatt_chr_def[]) {
+        GOFA_W(G_SIGN), GOFA_W(G_SPEED), GOFA_W(G_SOUND), GOFA_W(G_OVER), GOFA_W(G_NAV), GOFA_W(G_TIME), {0}}},
+    {.type = BLE_GATT_SVC_TYPE_PRIMARY, .uuid = &UUID_DIS.u, .characteristics = (struct ble_gatt_chr_def[]) {
+        GOFA_R(UUID_FW), GOFA_R(UUID_HW), GOFA_R(UUID_MODEL), GOFA_R(UUID_ERR), {0}}},
     {0},
 };
 
-static void gofa_show(const char *state)                          /* task ble: hien trang thai + goi vua nhan */
+static int hexv(char c) { return c >= '0' && c <= '9' ? c - '0' : (c | 0x20) >= 'a' && (c | 0x20) <= 'f' ? (c | 0x20) - 'a' + 10 : -1; }
+
+static void gofa_setup(void)                                       /* ten + UUID dinh danh tu MAC Bluetooth */
 {
-    char last[160] = "";
-    uint8_t b[40];
-    uint16_t n, full;
-    uint32_t cnt;
-    char u[12];
-    taskENTER_CRITICAL(&s_sniff_mux);
-    n = s_sniff_len; full = s_sniff_full; cnt = s_sniff_n;
-    memcpy(b, s_sniff, n);
-    memcpy(u, s_sniff_uuid, sizeof u);
-    taskEXIT_CRITICAL(&s_sniff_mux);
-    if (cnt) {
-        int k = 0;
-        for (int i = 0; i < n && i < 12; i++) k += snprintf(last + k, sizeof last - k, i ? " %02X" : "%02X", b[i]);
-        if (k < (int)sizeof last - 3) k += snprintf(last + k, sizeof last - k, "\n");
-        for (int i = 0; i < n && i < 36 && k < (int)sizeof last - 2; i++) last[k++] = b[i] >= 0x20 && b[i] < 0x7F ? (char)b[i] : '.';
-        last[k] = 0;
+    uint8_t mac[6] = {0};
+    esp_read_mac(mac, ESP_MAC_BT);
+    snprintf(s_gofa_name, sizeof s_gofa_name, "HUD_%02X%02X", mac[4], mac[5]);
+    uint8_t be[16] = {0};                                          /* UUID theo thu tu doc (big endian) */
+    const char *p = CONFIG_EVCARHUD_GOFA_UUID_PREFIX;
+    int k = 0;
+    for (; *p && k < 10; p++) {
+        if (*p == '-') continue;
+        int hi = hexv(p[0]), lo = p[1] ? hexv(p[1]) : -1;
+        if (hi < 0 || lo < 0) break;
+        be[k++] = (uint8_t)(hi << 4 | lo);
+        p++;
     }
-    char head[96];
-    if (cnt) snprintf(head, sizeof head, "GOFA: %s · %lu gói · %s %ub", state, (unsigned long)cnt, u, full);
-    else snprintf(head, sizeof head, "GOFA: %s · chưa có gói", state);
-    board_ui_lock();
+    memcpy(be + 10, mac, 6);
+    s_gofa_id.u.type = BLE_UUID_TYPE_128;
+    for (int i = 0; i < 16; i++) s_gofa_id.value[i] = be[15 - i];  /* NimBLE luu nguoc */
+    char us[BLE_UUID_STR_LEN];
+    ble_uuid_to_str(&s_gofa_id.u, us);
+    ESP_LOGI(TAG, "GOFA: ten %s, service UUID dinh danh %s", s_gofa_name, us);
+}
+
+static void gofa_show(const char *state, const char *last)       /* task ble: dai GOFA duoi man hinh */
+{
+    char head[64];
+    snprintf(head, sizeof head, "GOFA: %s", state);
     ui_gofa_debug(head, last);
-    board_ui_unlock();
+}
+
+static void gofa_drain(void)
+{
+    gofa_pkt_t pk;
+    while (s_gofa_q && xQueueReceive(s_gofa_q, &pk, 0) == pdTRUE) {
+        char sum[96], last[200];
+        board_ui_lock();
+        gofa_handle(pk.chr, pk.d, pk.len, sum, sizeof sum);
+        int k = snprintf(last, sizeof last, "%s\n", sum);
+        for (int i = 0; i < pk.len && i < 12 && k < (int)sizeof last - 4; i++) k += snprintf(last + k, sizeof last - k, "%02X ", pk.d[i]);
+        gofa_show("đang nhận dữ liệu", last);
+        board_ui_unlock();
+    }
 }
 
 static void advertise(void)
@@ -189,7 +210,7 @@ static void advertise(void)
     struct ble_hs_adv_fields f;
     memset(&f, 0, sizeof f);
     f.flags = BLE_HS_ADV_F_DISC_GEN | BLE_HS_ADV_F_BREDR_UNSUP;
-    f.uuids128 = (ble_uuid128_t *)&UUID_SVC;
+    f.uuids128 = (ble_uuid128_t *)(s_gofa ? &s_gofa_id : &UUID_SVC);   /* GOFA: UUID dinh danh dat dau tien */
     f.num_uuids128 = 1;
     f.uuids128_is_complete = 1;
     f.name = (const uint8_t *)name;
@@ -232,7 +253,7 @@ static int gap_event(struct ble_gap_event *ev, void *arg)
         if (ev->connect.status == 0) {
             s_conn = ev->connect.conn_handle;
             ESP_LOGI(TAG, "dien thoai ket noi Bluetooth: cho dien thoai doc dich vu HLP va bat thong bao RX");
-            if (s_gofa) wake(EV_SNIFF);
+            if (s_gofa) wake(EV_GUP);
         } else {
             advertise();
         }
@@ -241,7 +262,7 @@ static int gap_event(struct ble_gap_event *ev, void *arg)
         ESP_LOGI(TAG, "dien thoai ngat Bluetooth (ly do %d)", ev->disconnect.reason);
         s_conn = BLE_HS_CONN_HANDLE_NONE;
         s_state = 1;
-        wake(EV_DOWN | EV_SNIFF);
+        wake(EV_DOWN | (s_gofa ? EV_GDOWN : 0));
         advertise();
         break;
     case BLE_GAP_EVENT_ADV_COMPLETE:
@@ -339,15 +360,15 @@ static bool bt_up(void)
     int rc = ble_gatts_count_cfg(s_svcs);
     if (rc == 0) rc = ble_gatts_add_svcs(s_svcs);
     s_gofa = settings_get_source() == UI_SRC_GOFA;
-    if (s_gofa && rc == 0) rc = ble_gatts_count_cfg(s_sniff_svcs);
-    if (s_gofa && rc == 0) rc = ble_gatts_add_svcs(s_sniff_svcs);
-    if (rc == 0) rc = ble_svc_gap_device_name_set(CONFIG_EVCARHUD_BLE_NAME);
+    if (s_gofa) gofa_setup();
+    if (s_gofa && rc == 0) rc = ble_gatts_count_cfg(s_gofa_svcs);
+    if (s_gofa && rc == 0) rc = ble_gatts_add_svcs(s_gofa_svcs);
+    if (rc == 0) rc = ble_svc_gap_device_name_set(s_gofa ? s_gofa_name : CONFIG_EVCARHUD_BLE_NAME);
     if (rc != 0) {
         ESP_LOGW(TAG, "dang ky dich vu GATT that bai (rc=%d)", rc);
         return false;
     }
     nimble_port_freertos_init(host_task);
-    if (s_gofa) wake(EV_SNIFF);
     for (int i = 0; i < 50 && !s_synced; i++) vTaskDelay(pdMS_TO_TICKS(100));
     if (!s_synced) {
         ESP_LOGW(TAG, "bo dieu khien Bluetooth khong tra loi: bo qua Bluetooth");
@@ -382,7 +403,14 @@ static void ble_task(void *arg)
             s_linked = true;
             link_up(LINK_BLE, ble_tx);                            /* HUD gui `dev` truoc (qua ble_tx -> hang doi) */
         }
-        if ((ev & EV_SNIFF) && s_gofa) gofa_show(s_conn != BLE_HS_CONN_HANDLE_NONE ? "đã kết nối Bluetooth" : "chờ điện thoại");
+        if (s_gofa && (ev & (EV_GUP | EV_GDOWN))) {
+            bool up = s_conn != BLE_HS_CONN_HANDLE_NONE;
+            board_ui_lock();
+            gofa_connected(up);
+            gofa_show(up ? "đã kết nối app Gofa" : "mất kết nối app Gofa", "");
+            board_ui_unlock();
+        }
+        if (s_gofa && (ev & EV_SNIFF)) gofa_drain();
         size_t n;
         while ((n = xStreamBufferReceive(s_rx_sb, rx, sizeof rx, 0)) > 0) {
             if (s_linked) link_rx(LINK_BLE, rx, n, false);        /* ghep dong theo LF nam trong bo giai ma */
@@ -396,6 +424,7 @@ void ble_link_start(void)
     if (s_task) return;
     s_rx_sb = xStreamBufferCreate(2048, 1);
     s_tx_mb = xMessageBufferCreate(2048);
+    s_gofa_q = xQueueCreate(12, sizeof(gofa_pkt_t));
     if (!s_rx_sb || !s_tx_mb) return;
     if (xTaskCreate(ble_task, "ble_link", 5120, NULL, 4, &s_task) != pdPASS) s_task = NULL;
 }

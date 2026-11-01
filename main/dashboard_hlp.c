@@ -31,6 +31,7 @@ static lv_timer_t *watch_tmr;
 #define WAZE_HOLD_MS 5000             /* mat du lieu Waze (ten duong, gioi han, canh bao) qua 5 s: coi nhu chi con GPS */
 static uint32_t last_waze_tick;
 static bool waze_seen;
+static bool ext_on;                  /* nguon ngoai (app GOFA) dang noi: chi gui khi doi, khong tinh la mat tin hieu */
 
 static void send_line(const char *line)
 {
@@ -43,6 +44,7 @@ static void send_line(const char *line)
 static void update_gps(void)
 {
     int lvl = !signal_ok ? UI_GPS_LOST
+            : ext_on ? UI_GPS_GOOD
             : (!have_state || lv_tick_elaps(last_state_tick) > WEAK_MS) ? UI_GPS_WEAK : UI_GPS_GOOD;
     if (lvl == gps_level) return;
     gps_level = lvl;
@@ -222,7 +224,7 @@ static void civil_from_days(int64_t z, int *day, int *month)
 static void watch_cb(lv_timer_t *t)
 {
     (void)t;
-    if (signal_ok && lv_tick_elaps(last_rx_tick) > STALE_MS) set_signal(false);
+    if (signal_ok && !ext_on && lv_tick_elaps(last_rx_tick) > STALE_MS) set_signal(false);
     update_gps();
 
     if (has_clock) {                                 /* dong ho: moc tu `hi`, tu dem tiep */
@@ -297,4 +299,37 @@ void hlp_dash_on_disconnect(void)
 void hlp_dash_feed(const uint8_t *data, size_t len)
 {
     hlp_rx_feed(&rx, data, len);
+}
+
+void hlp_dash_external(bool on)
+{
+    ext_on = on;
+    if (on) {
+        ui_set_phone(true);
+        last_rx_tick = lv_tick_get();
+        set_signal(true);
+    } else {
+        hlp_dash_on_disconnect();
+    }
+}
+
+void hlp_dash_external_touch(void) { last_rx_tick = lv_tick_get(); }
+
+/* App GOFA chi gui gio dia phuong (gio, phut, giay), khong co ngay: giu ngay cua dong ho dang chay (gio da luu /
+ * gio build), chon ngay gan nhat de qua nua dem khong nhay sai 1 ngay. */
+void hlp_dash_set_local_time(int h, int m, int sec)
+{
+    int64_t now = has_clock ? clock_unix + (int64_t)lv_tick_elaps(clock_tick) / 1000 + (int64_t)clock_tz * 60 : 0;
+    int64_t day = now / 86400;
+    int64_t t = day * 86400 + h * 3600 + m * 60 + sec;
+    if (t - now > 43200) t -= 86400;
+    else if (now - t > 43200) t += 86400;
+    if (!has_clock) clock_tz = 7 * 60;                             /* Viet Nam UTC+7 */
+    has_clock = true;
+    clock_unix = t - (int64_t)clock_tz * 60;
+    clock_tick = lv_tick_get();
+    shown_minute = -1;
+    clock_synced = true;
+    ui_set_clock_synced(true);
+    watch_cb(NULL);
 }

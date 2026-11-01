@@ -135,7 +135,8 @@ static void (*source_cb)(int);
 static int set_focus = -1;
 static lv_obj_t *lbl_mac;                   /* MAC Bluetooth: de dang ky tren hud.platform.gofa.vn */
 static char mac_txt[24];
-static lv_obj_t *gofa_dbg, *lbl_gofa_dbg[2];   /* che do GOFA: goi Bluetooth vua nhan (doan giao thuc) */                  /* -1 = chua dung nut BOOT: khong ve khung chon */
+static lv_obj_t *gofa_dbg, *lbl_gofa_dbg[2];
+static lv_timer_t *gofa_tmr;                /* an dai GOFA sau 6 giay khong co goi moi */   /* che do GOFA: goi Bluetooth vua nhan (doan giao thuc) */                  /* -1 = chua dung nut BOOT: khong ve khung chon */
 
 /* ======================= tien ich ======================= */
 static lv_obj_t *mk_box(lv_obj_t *p, int x, int y, int w, int h)
@@ -942,8 +943,18 @@ void ui_open_settings_page(int page) { settings_open(); set_page = page ? 1 : 0;
 void ui_set_source(int s) { src = s == UI_SRC_GOFA ? UI_SRC_GOFA : UI_SRC_WAZE; render_standby(); }
 void ui_set_source_hook(void (*cb)(int)) { source_cb = cb; }
 void ui_test_switch(int want) { rb_start(want); }
+static void gofa_tmr_cb(lv_timer_t *t)
+{
+    (void)t;
+    show(gofa_dbg, false);
+    lv_timer_pause(gofa_tmr);
+}
+
 void ui_gofa_debug(const char *state, const char *last)
 {
+    if (!gofa_tmr) gofa_tmr = lv_timer_create(gofa_tmr_cb, 6000, NULL);
+    lv_timer_reset(gofa_tmr);
+    lv_timer_resume(gofa_tmr);
     if (!gofa_dbg) {
         gofa_dbg = mk_box(scr, 0, UI_H - 52, UI_W, 52);
         lv_obj_set_style_bg_color(gofa_dbg, lv_color_hex(0x05080C), 0);

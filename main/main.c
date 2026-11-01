@@ -22,6 +22,7 @@
 #include "demo.h"
 #include "link.h"
 #include "settings.h"
+#include "gofa.h"
 #include "ui_fonts.h"
 
 static const char *TAG = "evcarhud";
@@ -210,6 +211,7 @@ void app_main(void)
     board_set_volume(settings_get_sound() ? settings_get_volume() : 0);
     ui_set_sound(settings_get_sound(), settings_get_volume());
     ui_set_beep_hook(on_beep);
+    gofa_set_beep(on_beep);
     ui_set_sound_hook(on_sound);
     ui_set_source(settings_get_source());
     ui_set_source_hook(on_source);

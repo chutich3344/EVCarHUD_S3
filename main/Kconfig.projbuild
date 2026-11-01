@@ -133,4 +133,10 @@ menu "EVCarHUD"
     config EVCARHUD_BLE_NAME
         string "Ten Bluetooth (Waze Mod tim theo ten nay)"
         default "EVCarHUD"
+
+    config EVCARHUD_GOFA_UUID_PREFIX
+        string "GOFA: tien to Service UUID dinh danh (20 ky tu hex XXXXXXXX-XXXX-XXXX-XXXX, theo cau hinh thong nhat voi GOFA)"
+        default "6E400001-B5A3-F393-E0A9"
+        help
+            Quang ba o che do GOFA: "<tien to>-<MAC Bluetooth 12 ky tu hex>". Hoi GOFA gia tri dung.
 endmenu
