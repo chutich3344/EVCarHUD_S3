@@ -117,10 +117,11 @@ static const ble_uuid16_t G_SIGN = U16(0x3030), G_SPEED = U16(0x3031), G_SOUND =
 static ble_uuid128_t s_gofa_id;           /* Service UUID dinh danh (co MAC) */
 static char s_gofa_name[16];
 static volatile bool s_gofa;
-typedef struct { uint16_t chr, len; uint8_t d[244]; } gofa_pkt_t;
+typedef struct { uint16_t chr, len; uint8_t d[512]; } gofa_pkt_t;
 static QueueHandle_t s_gofa_q;
 static volatile uint16_t s_mtu = 23;
 static uint16_t s_gofa_cnt[4];            /* so goi da nhan: bien bao, toc do, dan duong, gio */
+static volatile uint16_t s_gofa_rd, s_gofa_snd, s_gofa_ovr, s_gofa_bad;   /* lan doc 0x180A, goi 0x3032, 0x3033, goi hong/qua dai */
 #define EV_GUP   (1u << 5)
 #define EV_GDOWN (1u << 6)
 
@@ -134,16 +135,23 @@ static int gofa_access(uint16_t conn, uint16_t attr, struct ble_gatt_access_ctxt
         const esp_app_desc_t *ad = esp_app_get_description();
         const char *v = id == 0x2A26 ? (ad ? ad->version : "1.0") : id == 0x2A27 ? "ESP32-2432S028" : id == 0x2A24 ? "EVCarHUD 2.8" : NULL;
         ESP_LOGI(TAG, "GOFA doc 0x%04X", id);
+        s_gofa_rd++;
+        wake(EV_SNIFF);
         if (v) return os_mbuf_append(ctxt->om, v, strlen(v)) == 0 ? 0 : BLE_ATT_ERR_INSUFFICIENT_RES;
         static const uint8_t no_err = 0;                           /* ma loi 0x2A3F: 0 = khong loi */
         return os_mbuf_append(ctxt->om, &no_err, 1) == 0 ? 0 : BLE_ATT_ERR_INSUFFICIENT_RES;
     }
     if (ctxt->op != BLE_GATT_ACCESS_OP_WRITE_CHR) return BLE_ATT_ERR_UNLIKELY;
-    gofa_pkt_t pk;
+    static gofa_pkt_t pk;                                          /* chi task host NimBLE goi: khong can khoa */
     pk.chr = id;
     pk.len = 0;
-    if (ble_hs_mbuf_to_flat(ctxt->om, pk.d, sizeof pk.d, &pk.len) != 0 && OS_MBUF_PKTLEN(ctxt->om) > sizeof pk.d)
+    if (ble_hs_mbuf_to_flat(ctxt->om, pk.d, sizeof pk.d, &pk.len) != 0 && OS_MBUF_PKTLEN(ctxt->om) > sizeof pk.d) {
+        s_gofa_bad++;
+        wake(EV_SNIFF);
         return BLE_ATT_ERR_INVALID_ATTR_VALUE_LEN;
+    }
+    if (id == 0x3032) s_gofa_snd++;
+    if (id == 0x3033) s_gofa_ovr++;
     ESP_LOGI(TAG, "GOFA ghi 0x%04X, %u byte", id, pk.len);
     ESP_LOG_BUFFER_HEX_LEVEL(TAG, pk.d, pk.len, ESP_LOG_INFO);
     if (s_gofa_q && xQueueSend(s_gofa_q, &pk, 0) == pdTRUE) wake(EV_SNIFF);
@@ -188,17 +196,17 @@ static void gofa_setup(void)                                       /* ten + UUID
 static void gofa_show(const char *state, const char *last)       /* task ble: dai GOFA duoi man hinh */
 {
     (void)state;
-    char head[96];
-    snprintf(head, sizeof head, "GOFA · MTU %u · biển %u · tốc %u · dẫn %u · giờ %u", s_mtu, s_gofa_cnt[0], s_gofa_cnt[1],
-             s_gofa_cnt[2], s_gofa_cnt[3]);
+    char head[128];
+    snprintf(head, sizeof head, "MTU%u đọc%u biển%u tốc%u âm%u quá%u dẫn%u giờ%u%s", s_mtu, s_gofa_rd,
+             s_gofa_cnt[0], s_gofa_cnt[1], s_gofa_snd, s_gofa_ovr, s_gofa_cnt[2], s_gofa_cnt[3], s_gofa_bad ? " · LỖI" : "");
     ui_gofa_debug(head, last);
 }
 
 static void gofa_drain(void)
 {
-    gofa_pkt_t pk;
+    static gofa_pkt_t pk;
     while (s_gofa_q && xQueueReceive(s_gofa_q, &pk, 0) == pdTRUE) {
-        char sum[96], last[200];
+        char sum[96], last[160];
         int ci = pk.chr == 0x3030 ? 0 : pk.chr == 0x3031 ? 1 : pk.chr == 0x3038 ? 2 : pk.chr == 0x3039 ? 3 : -1;
         if (ci >= 0) s_gofa_cnt[ci]++;
         board_ui_lock();
