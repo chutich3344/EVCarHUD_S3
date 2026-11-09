@@ -22,6 +22,7 @@
 #include "demo.h"
 #include "link.h"
 #include "settings.h"
+#include "ota.h"
 #include "gofa.h"
 #include "ui_fonts.h"
 
@@ -247,6 +248,7 @@ void app_main(void)
     board_ui_unlock();
 
     buttons_start();
+    ota_start();                                             /* cap nhat firmware qua app: xac nhan ban moi */
     if (!demo) ble_link_start();                             /* cho Waze Mod ket noi qua Bluetooth LE */
 #if CONFIG_EVCARHUD_LDR
     xTaskCreate(light_task, "anh_sang", 2560, NULL, 2, NULL);

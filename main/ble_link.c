@@ -28,6 +28,7 @@
 #include "esp_app_desc.h"
 #include "esp_mac.h"
 #include "freertos/queue.h"
+#include "ota.h"
 
 /* HLP/1 qua BLE GATT (tai lieu Waze Mod, muc 8):
  *   dich vu  8a7e0001-4d6e-4c48-9a9d-484c504c0001
@@ -104,6 +105,47 @@ static const struct ble_gatt_svc_def s_svcs[] = {
     {0},
 };
 
+
+/* ===== Cap nhat firmware qua app (ota.h): dich vu 4556d0f0-8c2a-4b7e-9d3f-5a1c0e7b2f10, co o ca che do Waze va GOFA ===== */
+#define OTA_UUID(n) BLE_UUID128_INIT(0x10, 0x2f, 0x7b, 0x0e, 0x1c, 0x5a, 0x3f, 0x9d, 0x7e, 0x4b, 0x2a, 0x8c, (n), 0xd0, 0x56, 0x45)
+static const ble_uuid128_t UUID_OTA = OTA_UUID(0xf0), UUID_OTA_CTRL = OTA_UUID(0xf1), UUID_OTA_DATA = OTA_UUID(0xf2);
+static uint16_t s_ota_handle;
+
+static int ota_access(uint16_t conn, uint16_t attr, struct ble_gatt_access_ctxt *ctxt, void *arg)
+{
+    (void)conn;
+    (void)attr;
+    (void)arg;
+    if (ctxt->op == BLE_GATT_ACCESS_OP_READ_CHR) {
+        char info[96];
+        int n = ota_ble_info(info, sizeof info);
+        return os_mbuf_append(ctxt->om, info, n) == 0 ? 0 : BLE_ATT_ERR_INSUFFICIENT_RES;
+    }
+    if (ctxt->op != BLE_GATT_ACCESS_OP_WRITE_CHR) return BLE_ATT_ERR_UNLIKELY;
+    static uint8_t buf[528];
+    uint16_t n = 0;
+    if (OS_MBUF_PKTLEN(ctxt->om) > sizeof buf) return BLE_ATT_ERR_INVALID_ATTR_VALUE_LEN;
+    if (ble_hs_mbuf_to_flat(ctxt->om, buf, sizeof buf, &n) != 0) return BLE_ATT_ERR_UNLIKELY;
+    if (ble_uuid_cmp(ctxt->chr->uuid, &UUID_OTA_DATA.u) == 0) return ota_ble_data(buf, n);
+    return ota_ble_ctrl(buf, n);
+}
+
+static void ota_notify(const char *m)
+{
+    uint16_t c = s_conn;
+    if (c == BLE_HS_CONN_HANDLE_NONE || !s_ota_handle) return;
+    struct os_mbuf *om = ble_hs_mbuf_from_flat(m, strlen(m));
+    if (om) ble_gatts_notify_custom(c, s_ota_handle, om);
+}
+
+static const struct ble_gatt_svc_def s_ota_svcs[] = {
+    {.type = BLE_GATT_SVC_TYPE_PRIMARY, .uuid = &UUID_OTA.u, .characteristics = (struct ble_gatt_chr_def[]) {
+        {.uuid = &UUID_OTA_CTRL.u, .access_cb = ota_access, .val_handle = &s_ota_handle,
+         .flags = BLE_GATT_CHR_F_READ | BLE_GATT_CHR_F_WRITE | BLE_GATT_CHR_F_NOTIFY},
+        {.uuid = &UUID_OTA_DATA.u, .access_cb = ota_access, .flags = BLE_GATT_CHR_F_WRITE_NO_RSP | BLE_GATT_CHR_F_WRITE},
+        {0}}},
+    {0},
+};
 
 /* ===== Che do GOFA (tai lieu hud.platform.gofa.vn/docs) =====
  * Quang ba: ten "HUD_xxxx" + Service UUID dinh danh 128 bit "<tien to>-<MAC 12 ky tu hex>" (dat dau tien).
@@ -283,6 +325,7 @@ static int gap_event(struct ble_gap_event *ev, void *arg)
         ESP_LOGI(TAG, "dien thoai ngat Bluetooth (ly do %d)", ev->disconnect.reason);
         s_conn = BLE_HS_CONN_HANDLE_NONE;
         s_state = 1;
+        ota_ble_disconnected();
         wake(EV_DOWN | (s_gofa ? EV_GDOWN : 0));
         advertise();
         break;
@@ -382,6 +425,9 @@ static bool bt_up(void)
     ble_svc_gatt_init();
     int rc = ble_gatts_count_cfg(s_svcs);
     if (rc == 0) rc = ble_gatts_add_svcs(s_svcs);
+    if (rc == 0) rc = ble_gatts_count_cfg(s_ota_svcs);
+    if (rc == 0) rc = ble_gatts_add_svcs(s_ota_svcs);
+    ota_set_notify(ota_notify);
     s_gofa = settings_get_source() == UI_SRC_GOFA;
     if (s_gofa) gofa_setup();
     if (s_gofa && rc == 0) rc = ble_gatts_count_cfg(s_gofa_svcs);
