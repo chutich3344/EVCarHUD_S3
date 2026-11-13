@@ -18,6 +18,7 @@
 #include "board.h"
 #include "buttons.h"
 #include "dashboard.h"
+#include "xadas.h"
 #include "dashboard_hlp.h"
 #include "demo.h"
 #include "link.h"
@@ -204,6 +205,7 @@ void app_main(void)
     lv_obj_t *scr = lv_obj_create(NULL);
     lv_screen_load_anim(scr, LV_SCR_LOAD_ANIM_FADE_IN, 300, 0, true);
     dashboard_create(scr);
+    xadas_ui_init();                                         /* khoang cach xe truoc tu app xADAS (BLE) */
     ui_set_mode(settings_get_mode());
     ui_set_night_hook(on_night);                             /* dat den nen ngay theo Ngay/Dem */
     ui_set_mode_hook(on_mode);

@@ -1444,3 +1444,5 @@ void ui_set_level_hook(void (*cb)(int)) { level_cb = cb; }
 void ui_set_rotate_hook(void (*cb)(void)) { rotate_cb = cb; }
 
 bool ui_settings_shown(void) { return set_scr && shown(set_scr); }
+
+bool ui_is_night(void) { return night; }

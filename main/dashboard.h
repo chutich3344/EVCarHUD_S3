@@ -65,6 +65,7 @@ void ui_set_hint(const char *text);                    /* bo qua: man cho tu hie
  * Cham man hinh hoac bam BOOT: Tu dong -> Ngay -> Dem. */
 void ui_set_mode(int mode);
 int ui_get_mode(void);
+bool ui_is_night(void);                                /* giao dien dang o che do Dem */
 void ui_cycle_mode(void);
 void ui_set_ambient(int dark);                         /* 1 toi, 0 sang, -1 khong co cam bien */
 void ui_set_mode_hook(void (*cb)(int mode));           /* nguoi dung doi che do: de luu NVS */

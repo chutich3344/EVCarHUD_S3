@@ -7,6 +7,15 @@
 #include <string.h>
 #include "dashboard_hlp.h"
 #include <stdio.h>
+#include "xadas.h"
+void board_beep(int times) { printf("(tit %d)\n", times); }
+static void xa(uint8_t st, uint8_t lv, uint8_t sp, uint16_t d, uint16_t mn)   /* 1 khung xADAS HUD Link */
+{
+    uint8_t b[10] = {1, 0, st, lv, 0, sp, (uint8_t)d, (uint8_t)(d >> 8), (uint8_t)mn, (uint8_t)(mn >> 8)};
+    xadas_frame_t f;
+    if (xadas_parse(b, sizeof b, &f)) xadas_ui_frame(&f);
+}
+#include <stdio.h>
 #include <stdint.h>
 #include <string.h>
 
@@ -69,6 +78,7 @@ int main(int argc, char **argv)
     lv_obj_t *scr = lv_obj_create(NULL);
     lv_screen_load_anim(scr, LV_SCR_LOAD_ANIM_FADE_IN, 300, 0, true);
     dashboard_create(scr);
+    xadas_ui_init();
     hlp_dash_init(NULL, NULL);                     /* tren board: link_init() goi */
     run(400);
 
@@ -103,6 +113,15 @@ int main(int argc, char **argv)
         gofa_handle(GOFA_CHR_SIGN, sg, sizeof sg, sum, sizeof sum); printf("%s\n", sum);
         run(300);
         snprintf(p, sizeof p, "%s/gofa_cruise.bmp", dir); save_bmp(p);
+        xa(1, 1, 45, 32, 0xFFFF);
+        run(300);
+        snprintf(p, sizeof p, "%s/xa_1_chay_an_toan.bmp", dir); save_bmp(p);
+        xa(1, 3, 72, 42, 55);
+        run(300);
+        snprintf(p, sizeof p, "%s/xa_2_chay_qua_gan.bmp", dir); save_bmp(p);
+        xa(0, 0, 72, 0xFFFF, 0xFFFF);
+        xadas_ui_frame(NULL);
+        run(200);
         gofa_handle(GOFA_CHR_NAV, nav, n, sum, sizeof sum); printf("%s\n", sum);
         run(300);
         snprintf(p, sizeof p, "%s/gofa_nav.bmp", dir); save_bmp(p);
@@ -123,6 +142,19 @@ int main(int argc, char **argv)
         gofa_handle(GOFA_CHR_NAV, nav, n + 6, sum, sizeof sum);
         run(300);
         snprintf(p, sizeof p, "%s/gofa_nav_eta.bmp", dir); save_bmp(p);
+        xa(1, 1, 72, 68, 55);
+        run(300);
+        snprintf(p, sizeof p, "%s/xa_3_dan_duong_an_toan.bmp", dir); save_bmp(p);
+        xa(1, 2, 72, 57, 55);
+        run(300);
+        snprintf(p, sizeof p, "%s/xa_4_dan_duong_gan.bmp", dir); save_bmp(p);
+        xa(1, 3, 72, 42, 55);
+        run(150);
+        snprintf(p, sizeof p, "%s/xa_5_dan_duong_qua_gan.bmp", dir); save_bmp(p);
+        run(3500);
+        snprintf(p, sizeof p, "%s/xa_6_mat_tin_hieu.bmp", dir); save_bmp(p);
+        xa(0, 0, 72, 0xFFFF, 0xFFFF);
+        xadas_ui_frame(NULL);
         static const uint8_t off[] = {0x08, 0};
         gofa_handle(GOFA_CHR_NAV, off, sizeof off, sum, sizeof sum);
         gofa_connected(false);

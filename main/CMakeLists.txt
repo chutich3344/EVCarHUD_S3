@@ -1,5 +1,5 @@
 idf_component_register(
-    SRCS "main.c" "board.c" "buttons.c" "settings.c" "ble_link.c" "link.c" "demo.c"
+    SRCS "main.c" "board.c" "buttons.c" "settings.c" "ble_link.c" "xadas.c" "link.c" "demo.c"
          "dashboard.c" "dashboard_hlp.c" "dashboard_signs.c" "hlp.c" "gofa.c"
          "ui_font_cap12.c" "ui_font_sm12.c" "ui_font_txt14.c" "ui_font_txt16.c" "ui_font_mono14.c"
          "ui_font_dist24.c" "ui_font_sign24.c" "ui_font_speed62.c" "ui_font_speed88.c"
