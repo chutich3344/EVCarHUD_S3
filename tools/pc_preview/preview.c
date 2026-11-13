@@ -104,11 +104,25 @@ int main(int argc, char **argv)
         run(300);
         snprintf(p, sizeof p, "%s/gofa_cruise.bmp", dir); save_bmp(p);
         gofa_handle(GOFA_CHR_NAV, nav, n, sum, sizeof sum); printf("%s\n", sum);
-        char last[160];
-        snprintf(last, sizeof last, "%s\n08 02 12 0E 4D 61 69 20", sum);
-        ui_gofa_debug("GOFA: đang nhận dữ liệu", last);
         run(300);
         snprintf(p, sizeof p, "%s/gofa_nav.bmp", dir); save_bmp(p);
+        /* app GOFA khong gui ten duong (nhu anh chup 13/11): ban tin chi co trang thai, huong re, khoang cach */
+        static const uint8_t nav2[] = {0x08, 2, 0x20, 4, 0x28, 0x96, 0x01};
+        gofa_handle(GOFA_CHR_NAV, nav2, sizeof nav2, sum, sizeof sum); printf("%s\n", sum);
+        run(300);
+        snprintf(p, sizeof p, "%s/gofa_nav_khong_ten.bmp", dir); save_bmp(p);
+        static const uint8_t sg2[] = {0x08, 5};                     /* het camera: khong con dai vang */
+        gofa_handle(GOFA_CHR_SIGN, sg2, sizeof sg2, sum, sizeof sum);
+        run(300);
+        snprintf(p, sizeof p, "%s/gofa_nav_gio.bmp", dir); save_bmp(p);
+        gofa_handle(GOFA_CHR_NAV, nav, n, sum, sizeof sum);
+        run(300);
+        snprintf(p, sizeof p, "%s/gofa_nav_ten_gio.bmp", dir); save_bmp(p);
+        /* neu GOFA them truong 6 (con lai 6200 m) + 7 (con lai 720 s): tu ve giao dien day du nhu Waze */
+        memcpy(nav + n, (const uint8_t[]){0x30, 0xB8, 0x30, 0x38, 0xD0, 0x05}, 6);
+        gofa_handle(GOFA_CHR_NAV, nav, n + 6, sum, sizeof sum);
+        run(300);
+        snprintf(p, sizeof p, "%s/gofa_nav_eta.bmp", dir); save_bmp(p);
         static const uint8_t off[] = {0x08, 0};
         gofa_handle(GOFA_CHR_NAV, off, sizeof off, sum, sizeof sum);
         gofa_connected(false);

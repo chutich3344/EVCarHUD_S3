@@ -452,7 +452,9 @@ static void render_nav(void)
     fmt_dist2(num, sizeof num, &unit, dist_now);
     lv_label_set_text(a_dist, num);
     lv_label_set_text(a_dunit, unit);
-    int dy = b_on ? 100 : 122;
+    /* GOFA (13/11): app co the khong gui ten duong -> ha khoi khoang cach xuong cho can giua cot trai */
+    bool no_st = !street_nav[0];
+    int dy = b_on ? 100 : no_st ? 136 : 122;
     lv_obj_set_pos(a_dist, A_PAD, dy);
     lv_obj_set_pos(a_dunit, A_PAD + text_w(num, &ui_font_num54) + 5, dy + baseline(&ui_font_num54) - baseline(&ui_font_unit22));
     lv_obj_set_pos(a_bar, A_PAD, dy + baseline(&ui_font_num54) + 12);
@@ -466,12 +468,27 @@ static void render_nav(void)
     render_signs(A_RX + 4, sy, A_RW - 8, sh, true);
 
     bool eta = has_route && !b_on;
-    show(a_eta, eta);
-    show(a_eta2, eta);
+    /* App GOFA 4.2.2 khong gui gio den / quang duong / thoi gian con lai: o duoi bien hien GIO HIEN TAI thay vi de trong.
+     * Khi nguon co du lieu tuyen (Waze, hoac GOFA sau nay) thi tu ve lai giao dien day du. */
+    bool clk = !has_route && !b_on && clk_h >= 0;
+    show(a_eta, eta || clk);
+    show(a_eta2, eta || clk);
+    if (clk) {
+        char b[8];
+        snprintf(b, sizeof b, "%02d:%02d", clk_h % 24, clk_m % 60);
+        lv_label_set_text(a_eta, b);
+        lv_label_set_text(a_eta2, "giờ hiện tại");
+    }
     if (eta) {
         char d[12], b[32];
         const char *u;
-        lv_label_set_text(a_eta, eta_txt[0] ? eta_txt : "--:--");
+        char e[8] = "--:--";
+        if (eta_txt[0]) snprintf(e, sizeof e, "%s", eta_txt);
+        else if (clk_h >= 0 && eta_rmin > 0) {                    /* GOFA chi gui thoi gian con lai: gio den = gio + phut con lai */
+            int t = (clk_h * 60 + clk_m + eta_rmin) % 1440;
+            snprintf(e, sizeof e, "%02d:%02d", t / 60, t % 60);
+        }
+        lv_label_set_text(a_eta, e);
         fmt_dist2(d, sizeof d, &u, eta_rm > 0 ? eta_rm : -1);
         if (d[0] && eta_rmin > 0) {
             if (eta_rmin >= 60) snprintf(b, sizeof b, "%s %s · %dg%02d", d, u, eta_rmin / 60, eta_rmin % 60);
@@ -1269,7 +1286,7 @@ void ui_set_time(int hour, int minute, int wd)
     clk_h = hour;
     clk_m = minute;
     wday = wd;
-    if (changed && screen == SCR_CRUISE) render_all();
+    if (changed && (screen == SCR_CRUISE || (screen == SCR_NAV && !has_route))) render_all();   /* GOFA: o gio duoi bien */
     render_standby();
     update_night();
 }
