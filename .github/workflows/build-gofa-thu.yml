@@ -32,20 +32,20 @@ jobs:
       - name: Dat ten file theo commit
         run: |
           SHORT=$(git rev-parse --short HEAD)
-          cp build/evcarhud-full.bin "evcarhud-2.8-$SHORT.bin"
+          cp build/evcarhud-full.bin "p2.8-gofa-$(cat version.txt)-$SHORT.bin"
           echo "SHORT=$SHORT" >> "$GITHUB_ENV"
           ls -la build/evcarhud-full.bin
 
       - uses: actions/upload-artifact@v4
         with:
           name: evcarhud-2.8-${{ env.SHORT }}
-          path: evcarhud-2.8-${{ env.SHORT }}.bin
+          path: p2.8-*.bin
 
       - name: Cap nhat ban phat hanh "gofa-thu"
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release delete gofa-thu --yes --cleanup-tag || true
-          gh release create gofa-thu "evcarhud-2.8-$SHORT.bin" --target "$GITHUB_SHA" \
+          gh release create gofa-thu p2.8-*.bin --target "$GITHUB_SHA" \
             --title "Thử GOFA 2.8 ($SHORT)" \
             --notes "Bản thử GOFA cho 2.8\" (commit $SHORT), chưa phải bản phát hành. Tải file .bin rồi đưa lên evcarhud.com/admin, địa chỉ nạp 0x0." --prerelease
