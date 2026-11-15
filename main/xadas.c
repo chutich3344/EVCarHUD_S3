@@ -74,14 +74,15 @@ void xadas_chip_text(const xadas_frame_t *f, bool live, char *out, size_t n, int
 
 #include "ui_fonts.h"
 /* ===== Giao dien 2.8" (lv_layer_top, de len moi man) =====
- * Chip: o tron goc giua tren (x 112..208, y 4..30): so met mau theo muc xADAS (khoang trong o ca man chay va man dan duong).
- * Gan (level 2): dai vang duoi day man "XE TRƯỚC 57 m · tối thiểu 55 m", im lang.
- * Qua gan (level 3): dai do chop 2 Hz + vien do, tit 2 tieng (nhac lai 4 s mot lan; xe < 25 km/h: im).
- * Qua 3 s khong co khung: bo so, chip "Mất xADAS"; 1 phut sau an chip. */
-#define CH_W 96
+ * 14/11 nguoi dung: it chu, khong che noi dung dang hien. Chi 1 o nho dat vao cho trong o goc tren (x 140..212, giua
+ * dong ho / "Chi co GPS" va mui ten re), chi co so met:
+ *   an toan / mat GPS: chu mau (xanh la / xanh duong) tren nen toi; khong co so: "--" xam
+ *   gan (level 2): o to vang; qua gan (level 3): o to do chop 2 Hz + vien do man hinh, tit 2 tieng (xe < 25 km/h: im)
+ * Qua 3 s khong co khung: bo so, hien "--"; 1 phut sau an o. */
+#define CH_CX 176
+#define CH_MAXW 72
 #define CH_H 26
-#define BAR_H 46
-static lv_obj_t *s_chip, *s_chip_l, *s_bar, *s_bar_t, *s_bar_d, *s_bar_u, *s_edge;
+static lv_obj_t *s_chip, *s_chip_l, *s_edge;
 static lv_timer_t *s_tmr;
 static xadas_frame_t s_f;
 static bool s_on, s_live, s_dim;
@@ -106,50 +107,39 @@ static void paint(void)
 {
     if (!s_chip) return;
     bool night = ui_is_night();
-    bool set = ui_settings_shown();
-    char b[24];
+    bool show = s_on && !ui_settings_shown();
+    vis(s_chip, show);
+    vis(s_edge, show && s_lvl == 2);
+    if (!show) return;
+    char b[16];
     int c = 0;
-    xadas_chip_text(&s_f, s_live, b, sizeof b, &c);
-    vis(s_chip, s_on && !set);
-    if (s_on && !set) {
-        static const uint32_t cd[] = {0x8C96A0, 0x34D399, 0xFFD400, 0xFF4D4F, 0x35D6EF, 0xFFD400};
-        static const uint32_t cl[] = {0x4B5563, 0x047857, 0xB45309, 0xBE123C, 0x0E7490, 0xB45309};
-        uint32_t col = (night ? cd : cl)[c >= 0 && c <= 5 ? c : 0];
-        if (strcmp(lv_label_get_text(s_chip_l), b)) lv_label_set_text(s_chip_l, b);
-        int w = lv_text_get_width(b, strlen(b), &ui_font_txt16, 0) + 16;
-        if (w < 56) w = 56;
-        lv_obj_set_size(s_chip, w, CH_H);
-        lv_obj_set_pos(s_chip, (UI_W - w) / 2, 4);
-        lv_obj_set_style_bg_color(s_chip, lv_color_hex(night ? 0x000000 : 0xFFFFFF), 0);
-        lv_obj_set_style_bg_opa(s_chip, 200, 0);
-        lv_obj_set_style_border_color(s_chip, lv_color_hex(col), 0);
-        lv_obj_set_style_text_color(s_chip_l, lv_color_hex(col), 0);
-        lv_obj_center(s_chip_l);
-        lv_obj_move_foreground(s_chip);
+    if (s_live && s_f.state == XA_ST_MEASURE && s_f.dist != XA_NONE16) {
+        snprintf(b, sizeof b, "%u %s", (unsigned)s_f.dist, s_f.imperial ? "ft" : "m");
+        c = s_f.level == XA_LV_SAFE ? 1 : s_f.level == XA_LV_NEAR ? 2 : s_f.level == XA_LV_CLOSE ? 3 : s_f.level == XA_LV_NOGPS ? 4 : 0;
+    } else {
+        snprintf(b, sizeof b, "--");                          /* cho / khong co xe / dung do / mat tin hieu */
+        c = s_live && (s_f.state == XA_ST_HOT || s_f.state == XA_ST_NOIMG) ? 5 : 0;
     }
-    bool bar = s_lvl > 0 && !set;
-    vis(s_bar, bar);
-    vis(s_edge, bar && s_lvl == 2);
-    if (bar) {
-        bool red = s_lvl == 2;
-        uint32_t bg = red ? (s_dim ? 0x7A0A12 : 0xE11D2A) : (night ? 0xFFD400 : 0xF5B800);
-        uint32_t fg = red ? 0xFFFFFF : 0x14112B;
-        lv_obj_set_style_bg_color(s_bar, lv_color_hex(bg), 0);
-        lv_obj_set_style_text_color(s_bar_t, lv_color_hex(fg), 0);
-        lv_obj_set_style_text_color(s_bar_d, lv_color_hex(fg), 0);
-        const char *u = s_f.imperial ? "ft" : "m";
-        char t[64], d[16];
-        if (s_f.min != XA_NONE16) snprintf(t, sizeof t, "%s\ntối thiểu %u %s", red ? "QUÁ GẦN XE TRƯỚC" : "GẦN XE TRƯỚC", s_f.min, u);
-        else snprintf(t, sizeof t, "%s", red ? "QUÁ GẦN XE TRƯỚC" : "GẦN XE TRƯỚC");
-        snprintf(d, sizeof d, "%u", s_f.dist);              /* num30 chi co chu so: don vi o nhan rieng */
-        lv_label_set_text(s_bar_t, t);
-        lv_label_set_text(s_bar_d, d);
-        lv_label_set_text(s_bar_u, u);
-        lv_obj_set_style_text_color(s_bar_u, lv_color_hex(fg), 0);
-        lv_obj_align(s_bar_u, LV_ALIGN_RIGHT_MID, -12, 4);
-        lv_obj_align_to(s_bar_d, s_bar_u, LV_ALIGN_OUT_LEFT_BOTTOM, -4, 5);
+    static const uint32_t cd[] = {0x8C96A0, 0x34D399, 0xFFD400, 0xFF4D4F, 0x35D6EF, 0xFFD400};
+    static const uint32_t cl[] = {0x4B5563, 0x047857, 0xB45309, 0xBE123C, 0x0E7490, 0xB45309};
+    uint32_t col = (night ? cd : cl)[c], bg = night ? 0x000000 : 0xFFFFFF, fg = col;
+    lv_opa_t bo = 170;
+    if (s_lvl == 1) { bg = 0xFFD400; fg = 0x14112B; bo = LV_OPA_COVER; col = bg; }
+    if (s_lvl == 2) { bg = s_dim ? 0x7A0A12 : 0xE11D2A; fg = 0xFFFFFF; bo = LV_OPA_COVER; col = bg; }
+    if (strcmp(lv_label_get_text(s_chip_l), b)) lv_label_set_text(s_chip_l, b);
+    int w = lv_text_get_width(b, strlen(b), &ui_font_txt16, 0) + 14;
+    if (w < 44) w = 44;
+    if (w > CH_MAXW) w = CH_MAXW;
+    lv_obj_set_size(s_chip, w, CH_H);
+    lv_obj_set_pos(s_chip, CH_CX - w / 2, 4);
+    lv_obj_set_style_bg_color(s_chip, lv_color_hex(bg), 0);
+    lv_obj_set_style_bg_opa(s_chip, bo, 0);
+    lv_obj_set_style_border_color(s_chip, lv_color_hex(col), 0);
+    lv_obj_set_style_text_color(s_chip_l, lv_color_hex(fg), 0);
+    lv_obj_center(s_chip_l);
+    lv_obj_move_foreground(s_chip);
+    if (s_lvl == 2) {
         lv_obj_set_style_border_opa(s_edge, s_dim ? 70 : LV_OPA_COVER, 0);
-        lv_obj_move_foreground(s_bar);
         lv_obj_move_foreground(s_edge);
     }
 }
@@ -201,20 +191,7 @@ void xadas_ui_init(void)
     lv_obj_set_style_border_width(s_edge, 5, 0);
     lv_obj_set_style_border_color(s_edge, lv_color_hex(0xFF3D4F), 0);
 
-    s_bar = mk(top);
-    lv_obj_set_size(s_bar, UI_W, BAR_H);
-    lv_obj_set_pos(s_bar, 0, UI_H - BAR_H);
-    lv_obj_set_style_bg_opa(s_bar, LV_OPA_COVER, 0);
-    s_bar_t = lv_label_create(s_bar);
-    lv_obj_set_style_text_font(s_bar_t, &ui_font_txt14, 0);
-    lv_obj_set_style_text_line_space(s_bar_t, -2, 0);
-    lv_obj_align(s_bar_t, LV_ALIGN_LEFT_MID, 12, 0);
-    s_bar_d = lv_label_create(s_bar);
-    lv_obj_set_style_text_font(s_bar_d, &ui_font_num30, 0);
-    s_bar_u = lv_label_create(s_bar);
-    lv_obj_set_style_text_font(s_bar_u, &ui_font_txt16, 0);
     vis(s_chip, false);
-    vis(s_bar, false);
     vis(s_edge, false);
     s_tmr = lv_timer_create(tick_cb, 50, NULL);
 }
