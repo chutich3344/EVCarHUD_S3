@@ -130,6 +130,10 @@ menu "EVCarHUD"
         range 0 4095
         default 1500
 
+    config EVCARHUD_OTA_MODEL
+        string "Cap nhat OTA: ma model tren may chu evcarhud.com (app doc qua Bluetooth)"
+        default "lcd28"
+
     config EVCARHUD_BLE_NAME
         string "Ten Bluetooth (Waze Mod tim theo ten nay)"
         default "EVCarHUD"

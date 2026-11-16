@@ -1,5 +1,10 @@
-# Flash 4 MB: mot ban firmware duy nhat (cap nhat bang trang evcarhud.com, khong can OTA).
+# Flash 4 MB, cap nhat OTA qua app dien thoai (Bluetooth): 2 khe firmware ota_0 / ota_1, moi khe 1,94 MB (ban hien tai ~1,6 MB).
+# Ban moi luon ghi vao khe KHONG chay; khoi dong ban moi ma khong on (sap / khoi dong lai truoc khi xac nhan) thi
+# bootloader tu quay ve khe cu (CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE, main/ota.c).
+# ota_0 van o 0x10000 nhu factory cu. Doi bang phan vung: lan dau phai nap file gop o 0x0 (trang evcarhud.com hoac USB).
 # Name,   Type, SubType, Offset,   Size
-nvs,      data, nvs,     0x9000,   0x6000
+nvs,      data, nvs,     0x9000,   0x4000
+otadata,  data, ota,     0xd000,   0x2000
 phy_init, data, phy,     0xf000,   0x1000
-factory,  app,  factory, 0x10000,  0x3F0000
+ota_0,    app,  ota_0,   0x10000,  0x1F0000
+ota_1,    app,  ota_1,   0x200000, 0x1F0000

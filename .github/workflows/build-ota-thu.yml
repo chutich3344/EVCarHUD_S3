@@ -1,0 +1,40 @@
+# Build thu cap nhat OTA qua app (nhanh thu nghiem, KHONG dung ban phat hanh "ban-moi-nhat"):
+# file gop .bin (nap 0x0 lan dau: bang phan vung OTA moi) trong ban phat hanh rieng "ota-thu".
+name: Build thu OTA
+
+on:
+  push:
+    branches: [claude/ota-ble]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Build bang ESP-IDF 5.5
+        uses: espressif/esp-idf-ci-action@v1
+        with:
+          esp_idf_version: release-v5.5
+          target: esp32
+          command: git config --global --add safe.directory /app/${{ github.repository }} && idf.py build && idf.py merge-bin -o evcarhud-full.bin
+      - name: Dat ten file
+        run: |
+          SHORT=$(git rev-parse --short HEAD)
+          VER=$(cat version.txt)
+          cp build/evcarhud-full.bin "cyd28-ota-$VER-$SHORT.bin"
+          ls -la build/*.bin
+          echo "SHORT=$SHORT" >> "$GITHUB_ENV"
+      - name: Cap nhat ban phat hanh "ota-thu"
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete ota-thu --yes --cleanup-tag || true
+          gh release create ota-thu cyd28-ota-*.bin --target "$GITHUB_SHA" \
+            --title "Thử cập nhật OTA qua app (${{ env.SHORT }})" \
+            --notes "Lần đầu nạp file gộp ở 0x0 (bảng phân vùng mới). Sau đó cập nhật qua app EVCarHUD > Cập nhật firmware HUD." --prerelease
