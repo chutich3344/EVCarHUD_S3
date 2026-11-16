@@ -79,10 +79,7 @@ void xadas_chip_text(const xadas_frame_t *f, bool live, char *out, size_t n, int
  *   an toan / mat GPS: chu mau (xanh la / xanh duong) tren nen toi; khong co so: "--" xam
  *   gan (level 2): o to vang; qua gan (level 3): o to do chop 2 Hz + vien do man hinh, tit 2 tieng (xe < 25 km/h: im)
  * Qua 3 s khong co khung: bo so, hien "--"; 1 phut sau an o. */
-#define CH_CX 176
-#define CH_MAXW 72
-#define CH_H 26
-static lv_obj_t *s_chip, *s_chip_l, *s_edge;
+static lv_obj_t *s_edge;
 static lv_timer_t *s_tmr;
 static xadas_frame_t s_f;
 static bool s_on, s_live, s_dim;
@@ -103,45 +100,37 @@ static void vis(lv_obj_t *o, bool on)
     else lv_obj_add_flag(o, LV_OBJ_FLAG_HIDDEN);
 }
 
+/* 16/11: chip + o so met do dashboard ve (bo cuc 2 cot, dashboard_two.inc); o day chi con vien do man hinh khi qua gan */
 static void paint(void)
 {
-    if (!s_chip) return;
-    bool night = ui_is_night();
+    if (!s_edge) return;
     bool show = s_on && !ui_settings_shown();
-    vis(s_chip, show);
     vis(s_edge, show && s_lvl == 2);
-    if (!show) return;
-    char b[16];
-    int c = 0;
-    if (s_live && s_f.state == XA_ST_MEASURE && s_f.dist != XA_NONE16) {
-        snprintf(b, sizeof b, "%u %s", (unsigned)s_f.dist, s_f.imperial ? "ft" : "m");
-        c = s_f.level == XA_LV_SAFE ? 1 : s_f.level == XA_LV_NEAR ? 2 : s_f.level == XA_LV_CLOSE ? 3 : s_f.level == XA_LV_NOGPS ? 4 : 0;
-    } else {
-        snprintf(b, sizeof b, "--");                          /* cho / khong co xe / dung do / mat tin hieu */
-        c = s_live && (s_f.state == XA_ST_HOT || s_f.state == XA_ST_NOIMG) ? 5 : 0;
-    }
-    static const uint32_t cd[] = {0x8C96A0, 0x34D399, 0xFFD400, 0xFF4D4F, 0x35D6EF, 0xFFD400};
-    static const uint32_t cl[] = {0x4B5563, 0x047857, 0xB45309, 0xBE123C, 0x0E7490, 0xB45309};
-    uint32_t col = (night ? cd : cl)[c], bg = night ? 0x000000 : 0xFFFFFF, fg = col;
-    lv_opa_t bo = 170;
-    if (s_lvl == 1) { bg = 0xFFD400; fg = 0x14112B; bo = LV_OPA_COVER; col = bg; }
-    if (s_lvl == 2) { bg = s_dim ? 0x7A0A12 : 0xE11D2A; fg = 0xFFFFFF; bo = LV_OPA_COVER; col = bg; }
-    if (strcmp(lv_label_get_text(s_chip_l), b)) lv_label_set_text(s_chip_l, b);
-    int w = lv_text_get_width(b, strlen(b), &ui_font_txt16, 0) + 14;
-    if (w < 44) w = 44;
-    if (w > CH_MAXW) w = CH_MAXW;
-    lv_obj_set_size(s_chip, w, CH_H);
-    lv_obj_set_pos(s_chip, CH_CX - w / 2, 4);
-    lv_obj_set_style_bg_color(s_chip, lv_color_hex(bg), 0);
-    lv_obj_set_style_bg_opa(s_chip, bo, 0);
-    lv_obj_set_style_border_color(s_chip, lv_color_hex(col), 0);
-    lv_obj_set_style_text_color(s_chip_l, lv_color_hex(fg), 0);
-    lv_obj_center(s_chip_l);
-    lv_obj_move_foreground(s_chip);
-    if (s_lvl == 2) {
+    if (show && s_lvl == 2) {
         lv_obj_set_style_border_opa(s_edge, s_dim ? 70 : LV_OPA_COVER, 0);
         lv_obj_move_foreground(s_edge);
     }
+    if (!s_on) {
+        ui_xadas_state(-1, "", "", "", "", 0, false);
+        return;
+    }
+    char num[12], lab[32], chip[24];
+    const char *u = s_f.imperial ? "ft" : "m";
+    int kind, c = 0;
+    lab[0] = 0;
+    if (s_live && s_f.state == XA_ST_MEASURE && s_f.dist != XA_NONE16) {
+        snprintf(num, sizeof num, "%u", (unsigned)(s_f.dist % 10000));
+        kind = s_lvl == 2 ? 2 : s_lvl == 1 ? 1 : 0;
+        c = s_f.level == XA_LV_SAFE ? 1 : s_f.level == XA_LV_NEAR ? 2 : s_f.level == XA_LV_CLOSE ? 3 : s_f.level == XA_LV_NOGPS ? 4 : 0;
+        if (kind && s_f.min != XA_NONE16) snprintf(lab, sizeof lab, "TỐI THIỂU %u %s", (unsigned)s_f.min, u);
+        snprintf(chip, sizeof chip, "%s", s_f.test ? "xADAS THỬ" : "xADAS");
+    } else {
+        kind = 3;                                             /* cho / dung do / mat tin hieu: "--" */
+        snprintf(num, sizeof num, "--");
+        u = "";
+        xadas_chip_text(&s_f, s_live, chip, sizeof chip, &c);
+    }
+    ui_xadas_state(kind, num, u, lab, chip, c, kind == 2 && s_dim);
 }
 
 static bool city(void)
@@ -177,28 +166,20 @@ static void tick_cb(lv_timer_t *t)
 
 void xadas_ui_init(void)
 {
-    if (s_chip) return;
+    if (s_edge) return;
     lv_obj_t *top = lv_layer_top();
-    s_chip = mk(top);
-    lv_obj_set_style_radius(s_chip, 8, 0);
-    lv_obj_set_style_border_width(s_chip, 2, 0);
-    s_chip_l = lv_label_create(s_chip);
-    lv_obj_set_style_text_font(s_chip_l, &ui_font_txt16, 0);
-    lv_label_set_text(s_chip_l, "");
-
     s_edge = mk(top);
     lv_obj_set_size(s_edge, UI_W, UI_H);
     lv_obj_set_style_border_width(s_edge, 5, 0);
     lv_obj_set_style_border_color(s_edge, lv_color_hex(0xFF3D4F), 0);
 
-    vis(s_chip, false);
     vis(s_edge, false);
     s_tmr = lv_timer_create(tick_cb, 50, NULL);
 }
 
 void xadas_ui_frame(const xadas_frame_t *f)
 {
-    if (!s_chip) return;
+    if (!s_edge) return;
     int old = s_lvl;
     if (!f) {
         if (s_on && s_live && s_f.state != XA_ST_WAIT) {

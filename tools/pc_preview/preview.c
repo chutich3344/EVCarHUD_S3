@@ -159,6 +159,26 @@ int main(int argc, char **argv)
         gofa_handle(GOFA_CHR_NAV, off, sizeof off, sum, sizeof sum);
         gofa_connected(false);
         run(7000);
+        /* cao toc (16/11): bien CT + loi ra + tram dung nghi tren thanh tren */
+        ui_set_signal(true);
+        ui_set_waze(true);
+        ui_set_nav(false, 0, -1, 0, "Cao tốc TP.HCM – Long Thành", 0);
+        ui_set_speed(96);
+        ui_set_speed_limit(120);
+        {
+            ui_alert_t al[2] = {{20, 5200, -1}, {19, 18000, -1}};
+            ui_set_alerts(al, 2);
+        }
+        xa(1, 1, 96, 92, 70);
+        run(300);
+        snprintf(p, sizeof p, "%s/xa_7_cao_toc.bmp", dir); save_bmp(p);
+        xa(0, 0, 96, 0xFFFF, 0xFFFF);
+        xadas_ui_frame(NULL);
+        ui_set_alerts(NULL, 0);
+        run(300);
+        snprintf(p, sizeof p, "%s/cao_toc_khong_xadas.bmp", dir); save_bmp(p);
+        ui_set_signal(false);
+        run(300);
     }
     ui_set_source(UI_SRC_WAZE);
     ui_set_mac("A0:B7:65:2C:4F:A6");

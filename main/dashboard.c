@@ -318,7 +318,7 @@ static void update_night(void)
 
 /* ======================= ve tung phan ======================= */
 /* So toc do: dan duong o cot phai (72 px), chay thuong ben trai (110 px); 3 chu so thi nho lai. */
-static void render_speed(bool band_on)
+__attribute__((unused)) static void render_speed(bool band_on)
 {
     char b[12];
     if (speed < 0) snprintf(b, sizeof b, "--");
@@ -357,7 +357,7 @@ static void render_speed(bool band_on)
 
 /* Bien gioi han (luon co, "-" khi chua biet) + bien tren duong gan nhat neu co.
  * row: hai bien nam ngang (dan duong), khong thi xep doc (chay thuong). */
-static void render_signs(int x, int y, int w, int h, bool row)
+__attribute__((unused)) static void render_signs(int x, int y, int w, int h, bool row)
 {
     bool two = sign_now != NULL;
     int R, S = 0;
@@ -400,7 +400,7 @@ static void render_signs(int x, int y, int w, int h, bool row)
 }
 
 /* Dai vang: icon canh bao + khoang cach + thanh ngan dan khi toi gan. */
-static void render_band(void)
+__attribute__((unused)) static void render_band(void)
 {
     show(band, ev_now != NULL && screen != SCR_STANDBY);
     if (!ev_now) return;
@@ -434,7 +434,7 @@ static void render_band(void)
 }
 
 /* Dan duong (A): mui ten to + khoang cach + thanh tien do + ten duong ben trai; toc do + bien ben phai. */
-static void render_nav(void)
+__attribute__((unused)) static void render_nav(void)
 {
     bool b_on = ev_now != NULL;
     /* mui ten goc 64 px, hinh nam trong khoang ~44 px: phong 1,8 lan (1,55 khi co dai vang) */
@@ -501,7 +501,7 @@ static void render_nav(void)
 }
 
 /* Chay thuong (C): vien mau trang thai, hang tren ten duong + gio, giua toc do to + bien. */
-static void render_cruise(void)
+__attribute__((unused)) static void render_cruise(void)
 {
     bool b_on = ev_now != NULL;
     lv_color_t st = level == UI_LEVEL_OVER ? th->over : b_on ? th->band : th->ok;
@@ -518,17 +518,15 @@ static void render_cruise(void)
     render_signs(UI_W - C_BD - C_PAD + 4 - w, y0, w, y1 - y0, false);
 }
 
+#include "dashboard_two.inc"
+
 static void render_all(void)
 {
     if (!scr || screen < 0) return;
-    bool over = level == UI_LEVEL_OVER;
-    lv_obj_set_style_bg_color(scr, screen == SCR_CRUISE && over ? th->over_bg : th->bg, 0);
-    if (screen == SCR_STANDBY) { show(band, false); return; }
-    render_band();
-    render_speed(ev_now != NULL);
-    if (screen == SCR_NAV) render_nav();
-    else render_cruise();
-    lv_obj_move_foreground(band);
+    lv_obj_set_style_bg_color(scr, th->bg, 0);
+    show(band, false);
+    if (screen == SCR_STANDBY) return;
+    render_two();                                                  /* 16/11: bo cuc 2 cot thay man A / C cu */
     lv_obj_move_foreground(frame);
     if (set_scr && shown(set_scr)) lv_obj_move_foreground(set_scr);
     lv_obj_move_foreground(toast);
@@ -540,13 +538,14 @@ static void set_screen(int s)
     if (s == screen) return;
     screen = s;
     show(stby, s == SCR_STANDBY);
-    show(nav, s == SCR_NAV);
-    show(cru, s == SCR_CRUISE);
-    show(lbl_speed, s != SCR_STANDBY);
-    show(lbl_unit, s != SCR_STANDBY);
-    show(sign_ring, s != SCR_STANDBY);
-    if (s == SCR_STANDBY) show(img_sign, false);
-    if (level == UI_LEVEL_OVER && s == SCR_NAV) lv_timer_resume(blink_tmr);   /* vien do nhap nhay: chi khi dan duong */
+    show(nav, false);                                              /* man A / C cu: giu doi tuong, khong hien nua */
+    show(cru, false);
+    show(lbl_speed, false);
+    show(lbl_unit, false);
+    show(sign_ring, false);
+    show(img_sign, false);
+    show(two, s != SCR_STANDBY);
+    if (level == UI_LEVEL_OVER && s != SCR_STANDBY) lv_timer_resume(blink_tmr);   /* vien do nhap nhay khi vuot toc do */
     else { lv_timer_pause(blink_tmr); show(frame, false); }
     render_all();
     if (s == SCR_STANDBY) {
@@ -579,7 +578,7 @@ static void update_level(void)
     }
     if (lv != level) {
         level = lv;
-        if (lv == UI_LEVEL_OVER && screen == SCR_NAV) {
+        if (lv == UI_LEVEL_OVER && screen != SCR_STANDBY) {
             show(frame, true);
             lv_timer_resume(blink_tmr);
         } else {
@@ -1220,6 +1219,7 @@ void dashboard_create(lv_obj_t *screen_obj)
     build_nav();
     build_cruise();
     build_shared();
+    build_two();
     build_standby();
     colon_tmr = lv_timer_create(colon_cb, 500, NULL);
 
@@ -1286,7 +1286,7 @@ void ui_set_time(int hour, int minute, int wd)
     clk_h = hour;
     clk_m = minute;
     wday = wd;
-    if (changed && (screen == SCR_CRUISE || (screen == SCR_NAV && !has_route))) render_all();   /* GOFA: o gio duoi bien */
+    if (changed && (screen == SCR_CRUISE || screen == SCR_NAV)) render_all();   /* dong ho trong o toc do */
     render_standby();
     update_night();
 }

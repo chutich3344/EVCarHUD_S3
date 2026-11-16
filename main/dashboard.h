@@ -65,6 +65,9 @@ void ui_set_hint(const char *text);                    /* bo qua: man cho tu hie
  * Cham man hinh hoac bam BOOT: Tu dong -> Ngay -> Dem. */
 void ui_set_mode(int mode);
 int ui_get_mode(void);
+/* xADAS (xadas.c bao): kind -1 tat, 0 an toan, 1 gan, 2 qua gan, 3 khong co so; num/unit so met; minlab "TOI THIEU 55 m";
+ * chip: chu chip khi khong co so; color UI_XA_* (0 xam .. 5); dim: nhip chop khi qua gan */
+void ui_xadas_state(int kind, const char *num, const char *unit, const char *minlab, const char *chip, int color, bool dim);
 bool ui_is_night(void);                                /* giao dien dang o che do Dem */
 void ui_cycle_mode(void);
 void ui_set_ambient(int dark);                         /* 1 toi, 0 sang, -1 khong co cam bien */
