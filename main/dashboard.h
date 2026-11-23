@@ -69,6 +69,9 @@ int ui_get_mode(void);
  * chip: chu chip khi khong co so; color UI_XA_* (0 xam .. 5); dim: nhip chop khi qua gan */
 void ui_xadas_state(int kind, const char *num, const char *unit, const char *minlab, const char *chip, int color, bool dim);
 bool ui_is_night(void);                                /* giao dien dang o che do Dem */
+/* 23/11: den giao thong tu app LANE (goi T1 qua dich vu 4556d001): col 'R' / 'Y' / 'G', 0 = het; sec < 0 = khong co so.
+ * Ve o o duoi the bien (xADAS gan / qua gan van uu tien), tu bo sau 3 s khong co goi. */
+void ui_tlight(char col, int sec);
 void ui_cycle_mode(void);
 void ui_set_ambient(int dark);                         /* 1 toi, 0 sang, -1 khong co cam bien */
 void ui_set_mode_hook(void (*cb)(int mode));           /* nguoi dung doi che do: de luu NVS */

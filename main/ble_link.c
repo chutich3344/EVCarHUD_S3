@@ -6,6 +6,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include "esp_err.h"
 #include "esp_log.h"
@@ -170,11 +171,39 @@ static void ota_notify(const char *m)
     if (om) ble_gatts_notify_custom(c, s_ota_handle, om);
 }
 
+/* ===== 23/11: kenh app LANE (EVCarHUD Lan tren dien thoai): dich vu 4556d001, dac tinh 4556d005 (giong HUD P4).
+ * 2.8" chi doc goi den giao thong "T1|mau|giay" (R/Y/G, giay "-" = khong co; "T1|-" = het); goi A1/S1/D1 cua app bo qua. */
+static const ble_uuid128_t UUID_LANE = OTA_UUID(0x01), UUID_LANE_W = OTA_UUID(0x05);
+
+static int lane_access(uint16_t conn, uint16_t attr, struct ble_gatt_access_ctxt *ctxt, void *arg)
+{
+    (void)conn; (void)attr; (void)arg;
+    if (ctxt->op != BLE_GATT_ACCESS_OP_WRITE_CHR) return BLE_ATT_ERR_UNLIKELY;
+    char b[200];
+    uint16_t n = 0;
+    if (OS_MBUF_PKTLEN(ctxt->om) >= sizeof b) return 0;                 /* goi dan duong dai: khong dung */
+    if (ble_hs_mbuf_to_flat(ctxt->om, b, sizeof b - 1, &n) != 0) return BLE_ATT_ERR_UNLIKELY;
+    b[n] = 0;
+    if (n < 4 || strncmp(b, "T1|", 3) != 0) return 0;
+    char col = b[3];
+    int sec = -1;
+    if (n > 5 && b[4] == '|' && b[5] >= '0' && b[5] <= '9') sec = atoi(b + 5);
+    static char s_lc;
+    if (col != s_lc) { s_lc = col; ESP_LOGI(TAG, "den tu app LANE: %s", b); }
+    board_ui_lock();
+    ui_tlight(col, sec);
+    board_ui_unlock();
+    return 0;
+}
+
 static const struct ble_gatt_svc_def s_ota_svcs[] = {
     {.type = BLE_GATT_SVC_TYPE_PRIMARY, .uuid = &UUID_OTA.u, .characteristics = (struct ble_gatt_chr_def[]) {
         {.uuid = &UUID_OTA_CTRL.u, .access_cb = ota_access, .val_handle = &s_ota_handle,
          .flags = BLE_GATT_CHR_F_READ | BLE_GATT_CHR_F_WRITE | BLE_GATT_CHR_F_NOTIFY},
         {.uuid = &UUID_OTA_DATA.u, .access_cb = ota_access, .flags = BLE_GATT_CHR_F_WRITE_NO_RSP | BLE_GATT_CHR_F_WRITE},
+        {0}}},
+    {.type = BLE_GATT_SVC_TYPE_PRIMARY, .uuid = &UUID_LANE.u, .characteristics = (struct ble_gatt_chr_def[]) {
+        {.uuid = &UUID_LANE_W.u, .access_cb = lane_access, .flags = BLE_GATT_CHR_F_WRITE_NO_RSP | BLE_GATT_CHR_F_WRITE},
         {0}}},
     {0},
 };

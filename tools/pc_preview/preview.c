@@ -7,6 +7,7 @@
 #include <string.h>
 #include "dashboard_hlp.h"
 #include <stdio.h>
+#include <stdlib.h>
 #include "xadas.h"
 void board_beep(int times) { printf("(tit %d)\n", times); }
 static void xa(uint8_t st, uint8_t lv, uint8_t sp, uint16_t d, uint16_t mn)   /* 1 khung xADAS HUD Link */
@@ -177,6 +178,52 @@ int main(int argc, char **argv)
         ui_set_alerts(NULL, 0);
         run(300);
         snprintf(p, sizeof p, "%s/cao_toc_khong_xadas.bmp", dir); save_bmp(p);
+        /* 23/11: den giao thong tu app LANE (goi T1) o o duoi the bien */
+        ui_set_nav(false, 0, -1, 0, "Nguyễn Văn Linh", 0);
+        ui_set_speed_limit(50);
+        {
+            static const struct { char c; int s, v; const char *nm; } tl[] = {
+                {'R', 24, 0, "tl_1_do_24"}, {'R', 3, 0, "tl_2_do_sap_het"}, {'G', 18, 12, "tl_3_xanh_18"},
+                {'Y', 3, 18, "tl_4_vang_3"}, {'R', -1, 20, "tl_5_do_khong_so"}};
+            for (int md = 0; md < 2; md++) {
+                ui_set_mode(md ? UI_MODE_DAY : UI_MODE_NIGHT);
+                for (int i = 0; i < 5; i++) {
+                    ui_set_speed(tl[i].v);
+                    ui_tlight(tl[i].c, tl[i].s);
+                    run(300);
+                    snprintf(p, sizeof p, "%s/%s_%s.bmp", dir, tl[i].nm, md ? "ngay" : "dem"); save_bmp(p);
+                }
+                ui_set_nav(true, 3, 350, 0, "Nguyễn Văn Linh", 0);
+                ui_set_route("06:42", 4200, 9);
+                ui_tlight('R', 24);
+                ui_set_speed(0);
+                run(500);
+                snprintf(p, sizeof p, "%s/tl_6_dan_duong_%s.bmp", dir, md ? "ngay" : "dem"); save_bmp(p);
+                ui_set_nav(false, 0, -1, 0, "Nguyễn Văn Linh", 0);
+                run(3600);
+            }
+            if (getenv("TLVIDEO")) {                    /* kich ban dung den do -> xanh, 10 hinh/giay -> tl_v_*.bmp */
+                ui_set_mode(UI_MODE_NIGHT);
+                ui_tlight(0, -1);
+                run(3500);
+                for (int f = 0; f < 200; f++) {
+                    double t = f / 10.0;
+                    int v = t < 4 ? (int)(32 - 8 * t) : t < 13 ? 0 : t < 18 ? (int)((t - 13) * 8) : 40;
+                    if (v < 0) v = 0;
+                    ui_set_speed(v);
+                    if (f % 10 == 0) {
+                        int sec = 15 - (int)t;
+                        if (t < 13) ui_tlight('R', t < 1 ? -1 : sec < 0 ? 0 : sec);
+                        else if (t < 18) ui_tlight('G', 25 - (int)(t - 13));
+                    }
+                    run(100);
+                    snprintf(p, sizeof p, "%s/tl_v_%05d.bmp", dir, f); save_bmp(p);
+                }
+            }
+            ui_tlight(0, -1);
+            ui_set_mode(UI_MODE_AUTO);
+            run(3500);
+        }
         ui_set_signal(false);
         run(300);
     }
