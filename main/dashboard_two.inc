@@ -403,7 +403,7 @@ static void render_two(void)
         lv_obj_set_x(w_lo_lab, rx);
         lv_label_set_text(w_lo_lab, ci == 0 && num && tl_sec <= 3 ? "CHUẨN BỊ" : nm[ci]);
         if (num) {
-            char nb[8];
+            char nb[12];
             snprintf(nb, sizeof nb, "%d", tl_sec > 999 ? 999 : tl_sec);
             const lv_font_t *f = text_w(nb, &ui_font_num54) > rw - 14 ? &ui_font_num30 : &ui_font_num54;
             lv_obj_set_style_text_font(w_lo_lab, &ui_font_cap12, 0);
