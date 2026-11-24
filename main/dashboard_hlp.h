@@ -27,6 +27,9 @@ void hlp_dash_set_clock_hook(void (*cb)(int64_t unix_s, int tz_min));
 /* Nguon ngoai khong phai HLP (app GOFA, gofa.c): bat = da noi dien thoai + co tin hieu, khong het han sau 3 s */
 void hlp_dash_external(bool on);
 void hlp_dash_external_touch(void);
+/* App LANE (dich vu 4556d001): A1 toc do GPS -> khong co Waze / GOFA thi LANE lam nguon chinh; K1 gio dien thoai. Trong lock UI. */
+void hlp_dash_lane(int kmh);
+void hlp_dash_lane_clock(int64_t unix_s, int tz_min);
 void hlp_dash_set_local_time(int hour, int minute, int second);   /* gio dia phuong, giu ngay dang co */
 
 #ifdef __cplusplus

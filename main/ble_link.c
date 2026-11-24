@@ -6,6 +6,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include "esp_err.h"
 #include "esp_log.h"
@@ -24,6 +25,7 @@
 #include "link.h"
 #include "board.h"
 #include "dashboard.h"
+#include "dashboard_hlp.h"
 #include "settings.h"
 #include "gofa.h"
 #include "xadas.h"
@@ -170,11 +172,71 @@ static void ota_notify(const char *m)
     if (om) ble_gatts_notify_custom(c, s_ota_handle, om);
 }
 
+/* ===== 23/11: kenh app LANE (EVCarHUD Lan tren dien thoai): dich vu 4556d001, dac tinh 4556d005 (giong HUD P4).
+ * 2.8" doc: T1 den giao thong ("T1|mau|giay", "T1|-" = het), A1 (chi lay toc do: khong co Waze/GOFA thi LANE lam nguon),
+ * S1 bien toc do, K1 gio dien thoai. D1 dan duong chua dung. */
+static const ble_uuid128_t UUID_LANE = OTA_UUID(0x01), UUID_LANE_W = OTA_UUID(0x05);
+
+static int lane_access(uint16_t conn, uint16_t attr, struct ble_gatt_access_ctxt *ctxt, void *arg)
+{
+    (void)conn; (void)attr; (void)arg;
+    if (ctxt->op != BLE_GATT_ACCESS_OP_WRITE_CHR) return BLE_ATT_ERR_UNLIKELY;
+    char b[200];
+    uint16_t n = 0;
+    if (OS_MBUF_PKTLEN(ctxt->om) >= sizeof b) return 0;                 /* goi dan duong dai: khong dung */
+    if (ble_hs_mbuf_to_flat(ctxt->om, b, sizeof b - 1, &n) != 0) return BLE_ATT_ERR_UNLIKELY;
+    b[n] = 0;
+    if (n >= 4 && !strncmp(b, "A1|", 3)) {                            /* A1|...|v km/h|trang thai: truong thu 10 = toc do */
+        const char *q = b;
+        for (int k = 0; k < 9 && q; k++) { q = strchr(q, '|'); if (q) q++; }
+        int kmh = q ? atoi(q) : 0;
+        board_ui_lock();
+        hlp_dash_lane(kmh);
+        board_ui_unlock();
+        return 0;
+    }
+    if (n >= 4 && !strncmp(b, "S1|", 3)) {                            /* bien toc do app doc tu camera, 0 = het */
+        static int s_lim = -1;
+        int k = atoi(b + 3);
+        if (k != s_lim) {
+            s_lim = k;
+            board_ui_lock();
+            if (k > 0) ui_set_speed_limit(k);
+            board_ui_unlock();
+        }
+        return 0;
+    }
+    if (n >= 4 && !strncmp(b, "K1|", 3)) {                            /* gio dien thoai: K1|unix|tz phut */
+        char *e = NULL;
+        long long u = strtoll(b + 3, &e, 10);
+        int tz = (e && *e == '|') ? atoi(e + 1) : 7 * 60;
+        if (u > 1700000000LL) {
+            board_ui_lock();
+            hlp_dash_lane_clock((int64_t)u, tz);
+            board_ui_unlock();
+        }
+        return 0;
+    }
+    if (n < 4 || strncmp(b, "T1|", 3) != 0) return 0;
+    char col = b[3];
+    int sec = -1;
+    if (n > 5 && b[4] == '|' && b[5] >= '0' && b[5] <= '9') sec = atoi(b + 5);
+    static char s_lc;
+    if (col != s_lc) { s_lc = col; ESP_LOGI(TAG, "den tu app LANE: %s", b); }
+    board_ui_lock();
+    ui_tlight(col, sec);
+    board_ui_unlock();
+    return 0;
+}
+
 static const struct ble_gatt_svc_def s_ota_svcs[] = {
     {.type = BLE_GATT_SVC_TYPE_PRIMARY, .uuid = &UUID_OTA.u, .characteristics = (struct ble_gatt_chr_def[]) {
         {.uuid = &UUID_OTA_CTRL.u, .access_cb = ota_access, .val_handle = &s_ota_handle,
          .flags = BLE_GATT_CHR_F_READ | BLE_GATT_CHR_F_WRITE | BLE_GATT_CHR_F_NOTIFY},
         {.uuid = &UUID_OTA_DATA.u, .access_cb = ota_access, .flags = BLE_GATT_CHR_F_WRITE_NO_RSP | BLE_GATT_CHR_F_WRITE},
+        {0}}},
+    {.type = BLE_GATT_SVC_TYPE_PRIMARY, .uuid = &UUID_LANE.u, .characteristics = (struct ble_gatt_chr_def[]) {
+        {.uuid = &UUID_LANE_W.u, .access_cb = lane_access, .flags = BLE_GATT_CHR_F_WRITE_NO_RSP | BLE_GATT_CHR_F_WRITE},
         {0}}},
     {0},
 };

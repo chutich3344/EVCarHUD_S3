@@ -221,10 +221,40 @@ static void civil_from_days(int64_t z, int *day, int *month)
     *month = (int)(mp < 10 ? mp + 3 : mp - 9);
 }
 
+/* 24/11: app LANE (4556d005) lam nguon chinh khi khong co Waze / GOFA: goi A1 giu tin hieu + toc do GPS; K1 = gio */
+#define LANE_STALE_MS 4000
+static uint32_t lane_tick;
+static bool lane_seen;
+static bool lane_live(void) { return lane_seen && lv_tick_elaps(lane_tick) < LANE_STALE_MS; }
+static void watch_cb(lv_timer_t *t);
+
+void hlp_dash_lane(int kmh)
+{
+    lane_seen = true;
+    lane_tick = lv_tick_get();
+    bool waze_fresh = have_state && lv_tick_elaps(last_state_tick) < 3000;
+    if (ext_on || waze_fresh) return;
+    set_signal(true);
+    ui_set_speed(kmh);
+}
+
+void hlp_dash_lane_clock(int64_t unix_s, int tz_min)
+{
+    if (clock_synced && lv_tick_elaps(last_state_tick) < 60000 && have_state) return;   /* Waze dang cap gio */
+    has_clock = true;
+    clock_unix = unix_s;
+    clock_tz = tz_min;
+    clock_tick = lv_tick_get();
+    shown_minute = -1;
+    clock_synced = true;
+    ui_set_clock_synced(true);
+    watch_cb(NULL);
+}
+
 static void watch_cb(lv_timer_t *t)
 {
     (void)t;
-    if (signal_ok && !ext_on && lv_tick_elaps(last_rx_tick) > STALE_MS) set_signal(false);
+    if (signal_ok && !ext_on && !lane_live() && lv_tick_elaps(last_rx_tick) > STALE_MS) set_signal(false);
     update_gps();
 
     if (has_clock) {                                 /* dong ho: moc tu `hi`, tu dem tiep */
