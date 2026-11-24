@@ -36,6 +36,7 @@ static uint32_t tl_tick;
 static lv_obj_t *w_tl_house, *w_tl_lamp[3];
 static lv_timer_t *w_tl_tmr;
 static void render_two(void);
+static void update_screen(void);
 static bool tl_live(void) { return tl_col && lv_tick_elaps(tl_tick) < TL_STALE_MS; }
 static void tl_tmr_cb(lv_timer_t *t)
 {
@@ -44,6 +45,7 @@ static void tl_tmr_cb(lv_timer_t *t)
     static int blink = -1;
     bool live = tl_live();
     int bl = live && tl_col == 'G' && tl_sec >= 0 && tl_sec <= 3 ? (int)((lv_tick_get() / 250) % 2) : -1;
+    if (live != was) update_screen();                              /* het den: duoc ve man cho lai */
     if ((live != was || bl != blink) && (screen == SCR_CRUISE || screen == SCR_NAV)) render_two();
     was = live;
     blink = bl;
@@ -464,6 +466,7 @@ void ui_tlight(char col, int sec)
     tl_col = col;
     tl_sec = col ? sec : -1;
     tl_tick = lv_tick_get();
+    if (col) update_screen();                                      /* dang o man cho (do den lau): ve man chay */
     if (chg && (screen == SCR_CRUISE || screen == SCR_NAV)) render_two();
 }
 

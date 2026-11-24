@@ -202,6 +202,15 @@ int main(int argc, char **argv)
                 ui_set_nav(false, 0, -1, 0, "Nguyễn Văn Linh", 0);
                 run(3600);
             }
+            /* 24/11: dung den do 40 s khong dan duong: truoc day 30 s la ve man cho (mat den) */
+            ui_set_mode(UI_MODE_NIGHT);
+            ui_set_nav(false, 0, -1, 0, "Nguyễn Văn Linh", 0);
+            ui_set_speed(0);
+            for (int t = 0; t < 40; t++) { ui_tlight('R', 60 - t); run(1000); }
+            snprintf(p, sizeof p, "%s/tl_7_dung_40s.bmp", dir); save_bmp(p);
+            ui_tlight(0, -1);
+            run(3500);
+            snprintf(p, sizeof p, "%s/tl_8_het_den_ve_man_cho.bmp", dir); save_bmp(p);
             if (getenv("TLVIDEO")) {                    /* kich ban dung den do -> xanh, 10 hinh/giay -> tl_v_*.bmp */
                 ui_set_mode(UI_MODE_NIGHT);
                 ui_tlight(0, -1);

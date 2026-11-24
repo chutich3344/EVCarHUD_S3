@@ -559,7 +559,8 @@ static void set_screen(int s)
 /* Chua co du lieu -> man cho; dang dan duong -> dan duong; dang chay -> chay thuong; dung yen lau -> man cho. */
 static void update_screen(void)
 {
-    set_screen(!sig_ok || (!nav_on && !moving) ? SCR_STANDBY : nav_on ? SCR_NAV : SCR_CRUISE);
+    /* 24/11: dang thay den giao thong (app LANE): khong ve man cho khi do den > 30 s / chua co Waze */
+    set_screen((!sig_ok || (!nav_on && !moving)) && !tl_live() ? SCR_STANDBY : nav_on ? SCR_NAV : SCR_CRUISE);
 }
 
 /* ======================= canh bao toc do ======================= */
