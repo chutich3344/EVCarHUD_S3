@@ -53,7 +53,8 @@ static uint16_t *s_work;                     /* RGB565 60x60 vua giai ma */
 static uint8_t *s_nav_px;                    /* A8 */
 static uint16_t *s_sign_px, *s_warn_px, *s_lim_px;
 static lv_image_dsc_t s_nav_dsc, s_sign_dsc, s_warn_dsc, s_lim_dsc;
-static uint8_t s_jd_pool[3100];
+#define JD_POOL 8192                 /* ROM tjpgd: 3100 la toi thieu; bang Huffman lon can hon */
+static uint8_t *s_jd_pool;
 
 typedef struct { const uint8_t *p; size_t n, pos; } jsrc_t;
 
@@ -78,13 +79,19 @@ static unsigned int jd_out(JDEC *jd, void *bmp, JRECT *r)
 
 static bool decode(const uint8_t *jpg, size_t n)
 {
-    if (!s_work) return false;
+    if (!s_work || !s_jd_pool) return false;
     JDEC jd;
     jsrc_t src = {jpg, n, 0};
-    if (jd_prepare(&jd, jd_in, s_jd_pool, sizeof s_jd_pool, &src) != JDR_OK) return false;
-    if (jd.width != IMG || jd.height != IMG) return false;
+    JRESULT r = jd_prepare(&jd, jd_in, s_jd_pool, JD_POOL, &src);
+    if (r != JDR_OK) {
+        ESP_LOGW(TAG, "JPEG prepare loi %d", r);
+        return false;
+    }
+    if (jd.width != IMG || jd.height != IMG) ESP_LOGW(TAG, "JPEG %ux%u (khong phai 60x60)", jd.width, jd.height);
     memset(s_work, 0, IMG * IMG * 2);
-    return jd_decomp(&jd, jd_out, 0) == JDR_OK;
+    r = jd_decomp(&jd, jd_out, 0);
+    if (r != JDR_OK) ESP_LOGW(TAG, "JPEG decomp loi %d", r);
+    return r == JDR_OK;
 }
 
 /* Mui ten re la mau xanh duong (anh that cua VML); dem diem xanh / do nhu ban test V5 */
@@ -138,6 +145,7 @@ static void dsc_init(lv_image_dsc_t *d, void *px, lv_color_format_t cf, int bpp)
 
 /* ---------- trang thai chi dan ---------- */
 static bool s_turn, s_sign, s_warn, s_lim, s_data;
+static int s_turn_code = 3;
 static uint32_t s_turn_m, s_sign_m, s_warn_m, s_sign_min;
 static int64_t s_turn_at, s_sign_at, s_warn_at;
 static char s_street[96], s_last_text[96];
@@ -240,6 +248,7 @@ static void on_guidance(const uint8_t *p, size_t size)
         s_turn = true;
         s_turn_m = m;
         s_turn_at = t;
+        s_turn_code = 3;
         ui_set_nav_icon(&s_nav_dsc);
         ui_set_nav(true, 3, (int)m, 0, s_street, 0);
     } else if (ok_img) {
@@ -253,10 +262,20 @@ static void on_guidance(const uint8_t *p, size_t size)
             snprintf(s_last_text, sizeof s_last_text, "%s", label);
             ui_toast(label);
         }
+    } else if (jpg && !ok_img) {                              /* anh hong (khong giai duoc): van hien re + ten duong */
+        ESP_LOGI(TAG, "RE (anh loi) %u m | %s", (unsigned)m, label);
+        hexlog("anh loi", p, size > 256 ? 256 : size);
+        snprintf(s_street, sizeof s_street, "%s", label);
+        s_turn = true;
+        s_turn_m = m;
+        s_turn_at = t;
+        ui_set_nav_icon(NULL);
+        s_turn_code = 1;
+        ui_set_nav(true, 1, (int)m, 0, s_street, 0);
     } else if (s_turn && !strcmp(label, s_street)) {          /* chi co chu, cung duong: cap nhat met */
         s_turn_m = m;
         s_turn_at = t;
-        ui_set_nav(true, 3, (int)m, 0, s_street, 0);
+        ui_set_nav(true, s_turn_code, (int)m, 0, s_street, 0);
     } else {
         ESP_LOGI(TAG, "CHU %u m | %s", (unsigned)m, label);
         if (strcmp(label, s_last_text)) {
@@ -446,6 +465,7 @@ int vml_link_state(void) { return s_state; }
 void vml_link_start(void)
 {
     s_pkt = heap_caps_malloc(PKT_MAX, MALLOC_CAP_8BIT);
+    s_jd_pool = heap_caps_malloc(JD_POOL, MALLOC_CAP_8BIT);
     s_work = heap_caps_malloc(IMG * IMG * 2, MALLOC_CAP_8BIT);
     s_nav_px = heap_caps_malloc(IMG * IMG, MALLOC_CAP_8BIT);
     s_sign_px = heap_caps_calloc(1, IMG * IMG * 3, MALLOC_CAP_8BIT);
