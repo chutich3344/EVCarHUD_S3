@@ -143,7 +143,7 @@ int main(int argc, char **argv)
     ui_set_source(UI_SRC_VML);
     ui_set_time(22, 55, 4);
     ui_set_date(26, 11);
-    ui_set_clock_synced(true);
+    ui_set_clock_synced(false);
     run(500);
     shot("2_cho_ket_noi"); hold(10);
     ui_set_phone(true);
@@ -154,6 +154,7 @@ int main(int argc, char **argv)
     ui_set_waze(true);
     ui_set_speed(-1);
     ui_set_keep_on(true);
+    ui_set_speed_limit(50);
     ui_set_nav_icon(&arr_d);
     for (int m = 1250; m >= 0; m -= 25) {
         ui_set_nav(true, 3, m, 0, "Mai Chí Thọ", 0);
@@ -169,7 +170,7 @@ int main(int argc, char **argv)
             ui_set_alerts(NULL, 0);
             ui_set_alert_icon(NULL);
         }
-        if (m == 350) ui_set_limit_icon(&sign_d);
+        if (m == 300) ui_set_speed_limit(40);
         run(100);
         if (m == 1200) shot("4_re_1km2");
         else if (m == 500) shot("5_re_va_bien_tiep");
