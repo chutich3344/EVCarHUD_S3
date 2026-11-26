@@ -112,6 +112,18 @@ static void to_mask(void)
     }
 }
 
+/* Bien tron: RGB565 + mat na A8 hinh tron (bo goc nen cua anh JPEG) */
+static void round_mask(uint16_t *px)
+{
+    uint8_t *a = (uint8_t *)(px + IMG * IMG);
+    for (int y = 0; y < IMG; y++)
+        for (int x = 0; x < IMG; x++) {
+            float dx = x + 0.5f - IMG / 2.0f, dy = y + 0.5f - IMG / 2.0f;
+            float d = IMG / 2.0f - __builtin_sqrtf(dx * dx + dy * dy);   /* > 0: trong vong tron */
+            a[y * IMG + x] = d >= 1 ? 255 : d <= 0 ? 0 : (uint8_t)(d * 255);
+        }
+}
+
 static void dsc_init(lv_image_dsc_t *d, void *px, lv_color_format_t cf, int bpp)
 {
     memset(d, 0, sizeof *d);
@@ -119,7 +131,7 @@ static void dsc_init(lv_image_dsc_t *d, void *px, lv_color_format_t cf, int bpp)
     d->header.cf = cf;
     d->header.w = IMG;
     d->header.h = IMG;
-    d->header.stride = IMG * bpp;
+    d->header.stride = IMG * (cf == LV_COLOR_FORMAT_RGB565A8 ? 2 : bpp);
     d->data_size = IMG * IMG * bpp;
     d->data = px;
 }
@@ -422,9 +434,9 @@ void vml_link_start(void)
     s_pkt = heap_caps_malloc(PKT_MAX, MALLOC_CAP_8BIT);
     s_work = heap_caps_malloc(IMG * IMG * 2, MALLOC_CAP_8BIT);
     s_nav_px = heap_caps_malloc(IMG * IMG, MALLOC_CAP_8BIT);
-    s_sign_px = heap_caps_calloc(1, IMG * IMG * 2, MALLOC_CAP_8BIT);
+    s_sign_px = heap_caps_calloc(1, IMG * IMG * 3, MALLOC_CAP_8BIT);
     s_warn_px = heap_caps_calloc(1, IMG * IMG * 2, MALLOC_CAP_8BIT);
-    s_lim_px = heap_caps_calloc(1, IMG * IMG * 2, MALLOC_CAP_8BIT);
+    s_lim_px = heap_caps_calloc(1, IMG * IMG * 3, MALLOC_CAP_8BIT);
     s_rx = xStreamBufferCreate(12 * 1024, 1);
     if (!s_pkt || !s_work || !s_nav_px || !s_sign_px || !s_warn_px || !s_rx) {
         ESP_LOGE(TAG, "thieu RAM");
@@ -432,9 +444,13 @@ void vml_link_start(void)
         return;
     }
     dsc_init(&s_nav_dsc, s_nav_px, LV_COLOR_FORMAT_A8, 1);
-    dsc_init(&s_sign_dsc, s_sign_px, LV_COLOR_FORMAT_RGB565, 2);
+    round_mask(s_sign_px);
+    dsc_init(&s_sign_dsc, s_sign_px, LV_COLOR_FORMAT_RGB565A8, 3);
     dsc_init(&s_warn_dsc, s_warn_px, LV_COLOR_FORMAT_RGB565, 2);
-    if (s_lim_px) dsc_init(&s_lim_dsc, s_lim_px, LV_COLOR_FORMAT_RGB565, 2);
+    if (s_lim_px) {
+        round_mask(s_lim_px);
+        dsc_init(&s_lim_dsc, s_lim_px, LV_COLOR_FORMAT_RGB565A8, 3);
+    }
 
     ESP_ERROR_CHECK(esp_bt_controller_mem_release(ESP_BT_MODE_BLE));
     esp_bt_controller_config_t cc = BT_CONTROLLER_INIT_CONFIG_DEFAULT();

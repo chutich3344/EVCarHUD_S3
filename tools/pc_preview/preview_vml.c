@@ -1,6 +1,7 @@
 /* Chup anh giao dien 320x240 tren PC (khong can board): chay che do trinh dien qua bo giai ma HLP that
  * va luu vai khung hinh ra file BMP. Xem tools/pc_preview/build.sh. */
 #include "lvgl.h"
+#include <math.h>
 #include "dashboard.h"
 #include "demo.h"
 #include "gofa.h"
@@ -74,8 +75,55 @@ static void shot(const char *name)
 }
 static void hold(int n) { for (int i = 0; i < n; i++) { run(100); shot(NULL); } }
 
+
+/* Anh gia lap thay JPEG cua VML: mui ten re phai (A8), bien 60 tron do so 60, camera (RGB565) */
+static uint8_t arr_px[60*60];
+static uint16_t sign_px[60*60*3/2], cam_px[60*60];
+static lv_image_dsc_t arr_d, sign_d, cam_d;
+static void mkdsc(lv_image_dsc_t *d, void *px, lv_color_format_t cf, int bpp)
+{
+    memset(d, 0, sizeof *d);
+    d->header.magic = LV_IMAGE_HEADER_MAGIC; d->header.cf = cf; d->header.w = 60; d->header.h = 60;
+    d->header.stride = 60 * (cf == LV_COLOR_FORMAT_RGB565A8 ? 2 : bpp); d->data_size = 3600 * bpp; d->data = px;
+}
+static void mk_images(void)
+{
+    for (int y = 0; y < 60; y++) for (int x = 0; x < 60; x++) {
+        int a = 0;
+        if (x >= 18 && x <= 30 && y >= 26 && y <= 56) a = 255;                 /* than doc */
+        if (y >= 20 && y <= 32 && x >= 18 && x <= 40) a = 255;                 /* than ngang */
+        if (x >= 38 && x <= 54 && abs(y - 26) <= 54 - x) a = 255;             /* dau mui ten */
+        arr_px[y*60+x] = a;
+        int dx = x - 30, dy = y - 30, r2 = dx*dx + dy*dy;
+        sign_px[y*60+x] = r2 <= 29*29 ? (r2 >= 23*23 ? 0xF800 : 0xFFFF) : 0x0000;
+        uint16_t c = 0x0000;
+        if (x >= 10 && x <= 44 && y >= 20 && y <= 42) c = 0x2104;               /* than camera */
+        if (x >= 44 && x <= 54 && y >= 24 && y <= 38) c = 0x2104;
+        if ((x-26)*(x-26)+(y-31)*(y-31) <= 64) c = 0x5DFF;
+        if (y >= 46 && y <= 50 && x >= 10 && x <= 50) c = 0xFE60;
+        cam_px[y*60+x] = c;
+    }
+    /* chu "60" tren bien: 2 o so vuong don gian */
+    for (int y = 21; y <= 39; y++) for (int x = 17; x <= 43; x++) {
+        int lx = x < 30 ? x - 17 : x - 31, inl = lx >= 0 && lx <= 11;
+        if (!inl) continue;
+        bool edge = lx <= 2 || lx >= 9 || y <= 23 || y >= 37 || (x < 30 && y >= 29 && y <= 31);
+        if (x < 30 && lx >= 9 && y < 29) edge = false;
+        if (edge) sign_px[y*60+x] = 0x0000;
+    }
+    mkdsc(&arr_d, arr_px, LV_COLOR_FORMAT_A8, 1);
+    uint8_t *al = (uint8_t *)(sign_px + 3600);
+    for (int y = 0; y < 60; y++) for (int x = 0; x < 60; x++) {
+        float dx = x + 0.5f - 30, dy = y + 0.5f - 30, dd = 30 - sqrtf(dx*dx + dy*dy);
+        al[y*60+x] = dd >= 1 ? 255 : dd <= 0 ? 0 : (uint8_t)(dd * 255);
+    }
+    mkdsc(&sign_d, sign_px, LV_COLOR_FORMAT_RGB565A8, 3);
+    mkdsc(&cam_d, cam_px, LV_COLOR_FORMAT_RGB565, 2);
+}
+
 int main(int argc, char **argv)
 {
+    mk_images();
     outdir = argc > 1 ? argv[1] : ".";
     lv_init();
     lv_tick_set_cb(tick_cb);
@@ -84,7 +132,7 @@ int main(int argc, char **argv)
     lv_display_set_buffers(d, buf, NULL, sizeof buf, LV_DISPLAY_RENDER_MODE_PARTIAL);
     lv_display_set_flush_cb(d, flush_cb);
 
-    lv_screen_load(ui_splash_create("v3.0", UI_SRC_VML));
+    lv_screen_load(ui_splash_create("2.9", UI_SRC_VML));
     run(800);
     shot("1_man_chao"); hold(15);
 
@@ -105,26 +153,38 @@ int main(int argc, char **argv)
     ui_set_signal(true);
     ui_set_waze(true);
     ui_set_speed(-1);
+    ui_set_keep_on(true);
+    ui_set_nav_icon(&arr_d);
     for (int m = 1250; m >= 0; m -= 25) {
-        ui_set_nav(true, 3, m, 0, "Đồng Văn Cống", 0);
-        if (m <= 900 && m >= 300) {
-            ui_alert_t a = {8, m - 300, 60};
+        ui_set_nav(true, 3, m, 0, "Mai Chí Thọ", 0);
+        if (m <= 900 && m >= 360) {
+            ui_alert_t a = {8, m - 300, -1};
+            ui_set_alert_icon(&sign_d);
+            ui_set_alerts(&a, 1);
+        } else if (m < 360 && m >= 200) {
+            ui_alert_t a = {3, m - 120, 0};
+            ui_set_alert_icon(&cam_d);
             ui_set_alerts(&a, 1);
         } else {
             ui_set_alerts(NULL, 0);
+            ui_set_alert_icon(NULL);
         }
+        if (m == 350) ui_set_limit_icon(&sign_d);
         run(100);
         if (m == 1200) shot("4_re_1km2");
-        else if (m == 450) shot("5_re_va_bien_tiep");
+        else if (m == 500) shot("5_re_va_bien_tiep");
+        else if (m == 250) shot("6_camera_bien_hien_tai");
         else shot(NULL);
     }
-    ui_set_nav(false, 0, -1, 0, "Đồng Văn Cống", 0);
+    ui_set_nav(false, 0, -1, 0, "Mai Chí Thọ", 0);
+    ui_set_nav_icon(NULL);
     run(300);
-    shot("6_het_chi_dan"); hold(10);
+    shot("7_het_chi_dan"); hold(10);
     ui_set_mode(UI_MODE_DAY);
-    ui_set_nav(true, 3, 450, 0, "Đồng Văn Cống", 0);
-    { ui_alert_t a = {8, 150, 60}; ui_set_alerts(&a, 1); }
+    ui_set_nav_icon(&arr_d);
+    ui_set_nav(true, 3, 450, 0, "Mai Chí Thọ", 0);
+    { ui_alert_t a = {8, 150, -1}; ui_set_alert_icon(&sign_d); ui_set_alerts(&a, 1); }
     run(400);
-    shot("7_ban_ngay"); hold(10);
+    shot("8_ban_ngay"); hold(10);
     return 0;
 }
