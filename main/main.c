@@ -257,6 +257,17 @@ void app_main(void)
 #endif
         ui_set_hint(hint);
     }
+    {
+        esp_reset_reason_t rr = esp_reset_reason();         /* vua sap / tu khoi dong lai: bao len man de biet */
+        const char *why = rr == ESP_RST_PANIC ? "lỗi chương trình" : rr == ESP_RST_BROWNOUT ? "sụt nguồn"
+                        : (rr == ESP_RST_INT_WDT || rr == ESP_RST_TASK_WDT || rr == ESP_RST_WDT) ? "treo (watchdog)" : NULL;
+        if (why) {
+            char t[64];
+            snprintf(t, sizeof t, "HUD vừa khởi động lại do %s", why);
+            ui_toast(t);
+            ESP_LOGW(TAG, "%s", t);
+        }
+    }
     board_ui_unlock();
 
     buttons_start();

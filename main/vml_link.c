@@ -46,7 +46,7 @@ static const char NEXT_LIMIT[] = "Tốc độ tiếp theo";
 static StreamBufferHandle_t s_rx;
 static volatile uint32_t s_handle;
 static volatile int s_state;                 /* 0 chua len, 1 cho ket noi, 2 da noi, -1 loi */
-static volatile bool s_open_evt, s_close_evt;
+static volatile bool s_open_evt, s_close_evt, s_auth_fail;
 
 /* ---------- anh ---------- */
 static uint16_t *s_work;                     /* RGB565 60x60 vua giai ma */
@@ -368,6 +368,12 @@ static void vml_task(void *arg)
             ui_set_phone(false);
             board_ui_unlock();
         }
+        if (s_auth_fail) {
+            s_auth_fail = false;
+            board_ui_lock();
+            ui_toast("Ghép đôi lỗi: vào Bluetooth điện thoại, Bỏ ghép đôi HUD rồi ghép lại");
+            board_ui_unlock();
+        }
         for (size_t i = 0; i < n; i++) feed(buf[i]);
         expire();
     }
@@ -386,7 +392,15 @@ static void gap_cb(esp_bt_gap_cb_event_t ev, esp_bt_gap_cb_param_t *p)
         break;
     }
     case ESP_BT_GAP_AUTH_CMPL_EVT:
-        ESP_LOGI(TAG, "ghep doi %s", p->auth_cmpl.stat == ESP_BT_STATUS_SUCCESS ? "xong" : "loi");
+        if (p->auth_cmpl.stat == ESP_BT_STATUS_SUCCESS) {
+            ESP_LOGI(TAG, "ghep doi xong: %s", (const char *)p->auth_cmpl.device_name);
+        } else {
+            /* Dien thoai con khoa ghep doi cu (ban test Arduino / nap lai) ma HUD khong co -> noi roi ngat lien tuc.
+             * Xoa khoa ben HUD va bao nguoi dung xoa ghep doi tren dien thoai. */
+            ESP_LOGW(TAG, "ghep doi loi (ma %d): xoa khoa cu", p->auth_cmpl.stat);
+            esp_bt_gap_remove_bond_device(p->auth_cmpl.bda);
+            s_auth_fail = true;
+        }
         break;
     default:
         break;
