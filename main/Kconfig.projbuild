@@ -138,6 +138,16 @@ menu "EVCarHUD"
         string "Ten Bluetooth (Waze Mod tim theo ten nay)"
         default "EVCarHUD"
 
+    config EVCARHUD_VML
+        bool "Ban VML: ket noi VietMap Live qua Bluetooth thuong (SPP, gia HUD H1V) thay Bluetooth LE"
+        default n
+        help
+            Can Bluedroid + Bluetooth Classic (sdkconfig.vml). Ban nay khong co Waze Mod / GOFA / LANE / OTA qua BLE.
+    config EVCARHUD_VML_NAME
+        string "Ban VML: ten Bluetooth"
+        depends on EVCARHUD_VML
+        default "VIETMAP_HUD_EVC"
+
     config EVCARHUD_GOFA_UUID_PREFIX
         string "GOFA: tien to Service UUID dinh danh (20 ky tu hex XXXXXXXX-XXXX-XXXX-XXXX, theo cau hinh thong nhat voi GOFA)"
         default "6E400001-B5A3-F393-E0A9"

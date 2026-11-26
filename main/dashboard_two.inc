@@ -24,6 +24,7 @@ static lv_obj_t *w_ct, *w_ex, *w_ex_l, *w_rs, *w_rs_l;
 static lv_obj_t *w_sp, *w_kmh, *w_clk, *w_num;
 static lv_obj_t *w_sc, *w_arr, *w_tdist, *w_div, *w_ring, *w_ring_l;
 static lv_obj_t *w_lo, *w_lo_lab, *w_lo_num, *w_lo_unit, *w_lo_img;
+static lv_obj_t *w_limg;                                 /* ban VML: anh bien gioi han hien tai */
 /* trang thai xADAS do xadas.c bao (ui_xadas_state) */
 static int xs_kind = -1, xs_col;
 static bool xs_dim;
@@ -132,6 +133,9 @@ static void build_two(void)
     lv_obj_set_style_border_opa(w_ring, LV_OPA_COVER, 0);
     w_ring_l = mk_label(w_ring, &ui_font_sign40, 0, 0, "-");
     lv_obj_set_style_text_color(w_ring_l, lv_color_hex(0x111111), 0);
+    w_limg = mk_image(w_sc, 0, 0, 256);
+    lv_image_set_inner_align(w_limg, LV_IMAGE_ALIGN_TOP_LEFT);
+    lv_obj_add_flag(w_limg, LV_OBJ_FLAG_HIDDEN);
 
     w_lo = mk_box(two, W_CX, W_Y + W_HALF + 8, W_CW, W_HALF);    /* o duoi */
     w_card(w_lo);
@@ -217,16 +221,16 @@ static void render_two(void)
         lv_obj_set_width(w_chip, cw);
         lx += cw + 5;
     }
-    bool g = src == UI_SRC_GOFA;
-    const char *sn = g ? "GOFA" : "waze";
+    bool g = src == UI_SRC_GOFA, vm = src == UI_SRC_VML;
+    const char *sn = vm ? "VML" : g ? "GOFA" : "waze";
     lv_label_set_text(w_src_l, sn);
     int sw = text_w(sn, &ui_font_cap12) + 10;
     lv_obj_set_width(w_src, sw);
     lv_obj_center(w_src_l);
     int rx = UI_W - 8 - sw;
     lv_obj_set_x(w_src, rx);
-    lv_obj_set_style_bg_color(w_src, lv_color_hex(phone ? (g ? 0x0B8F4D : 0x33CCFF) : (night ? 0x4A5068 : 0xB9BDCA)), 0);
-    lv_obj_set_style_text_color(w_src_l, lv_color_hex(phone ? (g ? 0xFFFFFF : 0x05263A) : (night ? 0xFFFFFF : 0x14112B)), 0);
+    lv_obj_set_style_bg_color(w_src, lv_color_hex(phone ? (vm ? 0xE4252B : g ? 0x0B8F4D : 0x33CCFF) : (night ? 0x4A5068 : 0xB9BDCA)), 0);
+    lv_obj_set_style_text_color(w_src_l, lv_color_hex(phone ? (vm || g ? 0xFFFFFF : 0x05263A) : (night ? 0xFFFFFF : 0x14112B)), 0);
     const ui_alert_t *ex = NULL, *rs = NULL;
     if (hw)
         for (int i = 0; i < al_n; i++) {
@@ -294,8 +298,9 @@ static void render_two(void)
     int R;
     if (nv) {
         R = 52;
-        const lv_image_dsc_t *arr = arrow_for_turn(turn_now);
-        lv_image_set_src(w_arr, arr ? arr : &arrow_straight);
+        const lv_image_dsc_t *arr = vml_nav_img ? vml_nav_img : arrow_for_turn(turn_now);
+        lv_image_set_src(w_arr, arr ? arr : &arrow_straight); lv_obj_invalidate(w_arr);
+        lv_image_set_scale(w_arr, (uint32_t)(40 * 256 / (arr ? (int)arr->header.w : 64)));
         lv_obj_set_style_image_recolor(w_arr, fg, 0);
         lv_obj_set_style_image_opa(w_arr, arr ? LV_OPA_COVER : LV_OPA_60, 0);
         char num[12], d[20];
@@ -330,6 +335,14 @@ static void render_two(void)
     lv_obj_set_style_text_font(w_ring_l, rf, 0);
     lv_label_set_text(w_ring_l, b);
     lv_obj_center(w_ring_l);
+    bool limg = vml_limit_img && limit <= 0;                       /* ban VML: anh bien hien tai thay vong "-" */
+    show(w_ring, !limg);
+    show(w_limg, limg);
+    if (limg) {
+        lv_image_set_src(w_limg, vml_limit_img); lv_obj_invalidate(w_limg);
+        lv_image_set_scale(w_limg, (uint32_t)(R * 256 / (int)vml_limit_img->header.w));
+        lv_obj_set_pos(w_limg, rcx - R / 2, (sh - 2 - R) / 2);
+    }
 
     /* --- o duoi --- */
     lv_obj_set_style_text_font(w_lo_lab, lo == 3 ? &ui_font_txt14 : &ui_font_cap12, 0);
@@ -364,7 +377,13 @@ static void render_two(void)
         lv_obj_set_style_bg_color(w_lo, night ? lv_color_hex(0x3A300A) : lv_color_hex(0xFFF4C2), 0);
         lv_obj_set_style_border_color(w_lo, night ? lv_color_hex(0xFFD400) : lv_color_hex(0xB45309), 0);
         lv_obj_set_style_border_width(w_lo, 2, 0);
-        lv_image_set_src(w_lo_img, sign_for_alert(ev->code));
+        if (vml_alert_img) {                                        /* ban VML: anh bien / camera cua app */
+            lv_image_set_src(w_lo_img, vml_alert_img); lv_obj_invalidate(w_lo_img);
+            lv_image_set_scale(w_lo_img, 36 * 256 / vml_alert_img->header.w);
+        } else {
+            lv_image_set_src(w_lo_img, sign_for_alert(ev->code));
+            lv_image_set_scale(w_lo_img, 36 * 256 / 48);
+        }
         char num[12];
         const char *unit;
         if (ev->code == 8 && ev->value > 0) {

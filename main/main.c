@@ -14,7 +14,13 @@
 #include "freertos/task.h"
 #include "nvs_flash.h"
 
+#if CONFIG_EVCARHUD_VML
+#include "vml_link.h"
+#define SOURCE() UI_SRC_VML                                  /* ban VML: chi co VietMap Live */
+#else
 #include "ble_link.h"
+#define SOURCE() settings_get_source()
+#endif
 #include "board.h"
 #include "buttons.h"
 #include "dashboard.h"
@@ -158,7 +164,7 @@ static void splash(void)
 {
     const esp_app_desc_t *ad = esp_app_get_description();
     board_ui_lock();
-    lv_screen_load(ui_splash_create(ad ? ad->version : "", settings_get_source()));
+    lv_screen_load(ui_splash_create(ad ? ad->version : "", SOURCE()));
     board_ui_unlock();
     board_set_backlight(CONFIG_EVCARHUD_BL_DAY);
     vTaskDelay(pdMS_TO_TICKS(SPLASH_MS));
@@ -216,7 +222,7 @@ void app_main(void)
     ui_set_beep_hook(on_beep);
     gofa_set_beep(on_beep);
     ui_set_sound_hook(on_sound);
-    ui_set_source(settings_get_source());
+    ui_set_source(SOURCE());
     ui_set_source_hook(on_source);
     {
         uint8_t a[6];
@@ -244,14 +250,22 @@ void app_main(void)
         ui_toast("Trình diễn (giữ BOOT 3 giây để tắt)");
     } else {
         char hint[96];
+#if CONFIG_EVCARHUD_VML
+        snprintf(hint, sizeof hint, "Mở VietMap Live > Kết nối HUD,\nchọn \"%s\"", CONFIG_EVCARHUD_VML_NAME);
+#else
         snprintf(hint, sizeof hint, "Mở Waze Mod > HUD > Bluetooth LE,\nchọn \"%s\"", CONFIG_EVCARHUD_BLE_NAME);
+#endif
         ui_set_hint(hint);
     }
     board_ui_unlock();
 
     buttons_start();
     ota_start();                                             /* cap nhat firmware qua app: xac nhan ban moi */
+#if CONFIG_EVCARHUD_VML
+    if (!demo) vml_link_start();                             /* cho VietMap Live noi qua Bluetooth thuong (SPP) */
+#else
     if (!demo) ble_link_start();                             /* cho Waze Mod ket noi qua Bluetooth LE */
+#endif
 #if CONFIG_EVCARHUD_LDR
     xTaskCreate(light_task, "anh_sang", 2560, NULL, 2, NULL);
 #endif

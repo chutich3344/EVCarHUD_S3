@@ -1,0 +1,56 @@
+# Ban 2.8 VML: firmware 2.8" giao dien 2.9, ket noi VietMap Live qua Bluetooth thuong (SPP, gia HUD H1V).
+# Build voi sdkconfig.vml (Bluedroid + Classic, khong co BLE) -> ban phat hanh "vml-28", file p2.8-vml-<ver>-<ngay>.bin nap o 0x0.
+name: Build 2.8 VML
+
+on:
+  push:
+    branches: [claude/project-thread-3jpx6x]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Bo the vml-28 (khong de git describe ghi ten the vao phien ban)
+        run: git tag -d vml-28 || true
+
+      - name: Build bang ESP-IDF 5.5 (sdkconfig.vml)
+        uses: espressif/esp-idf-ci-action@v1
+        with:
+          esp_idf_version: release-v5.5
+          target: esp32
+          command: >-
+            git config --global --add safe.directory /app/${{ github.repository }} &&
+            idf.py -D SDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.vml" build &&
+            idf.py -D SDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.vml" merge-bin -o evcarhud-full.bin &&
+            idf.py -D SDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.vml" size
+
+      - name: Dat ten file
+        run: |
+          SHORT=$(git rev-parse --short HEAD)
+          DATE=$(TZ=Asia/Ho_Chi_Minh date +%Y%m%d)
+          cp build/evcarhud-full.bin "p2.8-vml-$(cat version.txt)-$DATE.bin"
+          echo "SHORT=$SHORT" >> "$GITHUB_ENV"
+          ls -la build/*.bin
+          grep -E "CONFIG_EVCARHUD_VML|CONFIG_BT_(NIMBLE|BLUEDROID)_ENABLED" build/config/sdkconfig.h || true
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: evcarhud-2.8-vml-${{ env.SHORT }}
+          path: p2.8-*.bin
+
+      - name: Cap nhat ban phat hanh "vml-28"
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete vml-28 --yes --cleanup-tag || true
+          gh release create vml-28 p2.8-*.bin --target "$GITHUB_SHA" \
+            --title "2.8 VML ($SHORT)" \
+            --notes "Bản thử 2.8\" kết nối VietMap Live qua SPP (commit $SHORT). Nạp ở địa chỉ 0x0 hoặc dùng nút Test trong evcarhud.com/admin." --prerelease
