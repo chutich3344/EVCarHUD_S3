@@ -148,7 +148,8 @@ static void dsc_init(lv_image_dsc_t *d, void *px, lv_color_format_t cf, int bpp)
 static bool s_turn, s_sign, s_warn, s_lim, s_data;
 static int s_turn_code = 3;
 static uint32_t s_turn_m, s_sign_m, s_warn_m, s_sign_min;
-static int64_t s_turn_at, s_sign_at, s_warn_at;
+static int64_t s_turn_at, s_sign_at, s_warn_at, s_cur_at;
+static bool s_cur;                           /* dang co goi bien hien tai (0101): giu man chay ca khi khong dan duong */
 static char s_street[96], s_last_text[96];
 
 static int64_t now_ms(void) { return esp_timer_get_time() / 1000; }
@@ -172,7 +173,7 @@ static void push_alerts(void)                /* goi trong khoa UI */
 
 static void push_live(void)
 {
-    bool live = s_turn || s_sign || s_warn;
+    bool live = s_turn || s_sign || s_warn || s_cur;
     if (live && !s_data) {
         s_data = true;
         ui_set_signal(true);
@@ -293,9 +294,14 @@ static void expire(void)
 {
     int64_t t = now_ms();
     bool ch = false;
-    if (!(s_turn && t - s_turn_at > TURN_MS) && !(s_sign && t - s_sign_at > SIGN_MS) && !(s_warn && t - s_warn_at > WARN_MS))
+    if (!(s_turn && t - s_turn_at > TURN_MS) && !(s_sign && t - s_sign_at > SIGN_MS) && !(s_warn && t - s_warn_at > WARN_MS)
+        && !(s_cur && t - s_cur_at > SIGN_MS))
         return;
     board_ui_lock();
+    if (s_cur && t - s_cur_at > SIGN_MS) {
+        s_cur = false;
+        ch = true;
+    }
     if (s_turn && t - s_turn_at > TURN_MS) {
         s_turn = false;
         ui_set_nav(false, 0, -1, 0, s_street, 0);
@@ -321,7 +327,7 @@ static void expire(void)
 static void reset_all(void)
 {
     board_ui_lock();
-    s_turn = s_sign = s_warn = s_lim = s_data = false;
+    s_turn = s_sign = s_warn = s_lim = s_data = s_cur = false;
     s_last_text[0] = 0;
     ui_set_nav_icon(NULL);
     ui_set_alert_icon(NULL);
@@ -343,6 +349,13 @@ static void on_frame(const uint8_t *p, size_t n)
         ESP_LOGI(TAG, "app hoi thong tin -> tra loi H1V");
     } else if (n == 29 && p[12] == 0x01 && p[13] == 0x01) {   /* nghi la bien gioi han hien tai o byte 20 (dang xac minh) */
         static int last = -1;
+        s_cur_at = now_ms();
+        if (!s_cur) {
+            s_cur = true;
+            board_ui_lock();
+            push_live();
+            board_ui_unlock();
+        }
         if (p[20] != last) {
             last = p[20];
             ESP_LOGI(TAG, "VML LIMIT CANDIDATE: %d", last);
