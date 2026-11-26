@@ -34,7 +34,7 @@ static const char *TAG = "vml";
 #define TURN_MS 6000         /* khong co goi re moi trong 6 s: an chi dan */
 #define SIGN_MS 15000
 #define WARN_MS 6000
-#define VML_SHOW_LIMIT 0     /* goi 0101 byte 20 = bien hien tai: bat khi da khop 2 mau (27/11: mau 1 khop 50) */
+#define VML_SHOW_LIMIT 1     /* goi 0101 byte 20 = bien hien tai (27/11: mau 1 khop 50, anh cho chay thu) */
 
 static const char H1V_INFO[] =
     "\xA5\x5A\x37\xC3\x00\x00\x00\x66\x68\x05\x27\xB8\x0E"
