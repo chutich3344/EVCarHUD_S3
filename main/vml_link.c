@@ -340,6 +340,12 @@ static void on_frame(const uint8_t *p, size_t n)
     if (n == 22 && p[12] == 0x0E && p[13] == 0x00) {
         if (s_handle) esp_spp_write(s_handle, sizeof H1V_INFO - 1, (uint8_t *)H1V_INFO);
         ESP_LOGI(TAG, "app hoi thong tin -> tra loi H1V");
+    } else if (n == 29 && p[12] == 0x01 && p[13] == 0x01) {   /* nghi la bien gioi han hien tai o byte 20 (dang xac minh) */
+        static int last = -1;
+        if (p[20] != last) {
+            last = p[20];
+            ESP_LOGI(TAG, "VML LIMIT CANDIDATE: %d", last);
+        }
     } else if (n >= 14 && p[12] == 0x40 && p[13] == 0xFE) {
         on_guidance(p, n);
     } else {
