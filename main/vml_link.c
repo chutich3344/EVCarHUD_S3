@@ -34,6 +34,7 @@ static const char *TAG = "vml";
 #define TURN_MS 6000         /* khong co goi re moi trong 6 s: an chi dan */
 #define SIGN_MS 15000
 #define WARN_MS 6000
+#define VML_SHOW_LIMIT 0     /* goi 0101 byte 20 = bien hien tai: bat khi da khop 2 mau (27/11: mau 1 khop 50) */
 
 static const char H1V_INFO[] =
     "\xA5\x5A\x37\xC3\x00\x00\x00\x66\x68\x05\x27\xB8\x0E"
@@ -345,6 +346,11 @@ static void on_frame(const uint8_t *p, size_t n)
         if (p[20] != last) {
             last = p[20];
             ESP_LOGI(TAG, "VML LIMIT CANDIDATE: %d", last);
+#if VML_SHOW_LIMIT
+            board_ui_lock();
+            ui_set_speed_limit(last >= 5 && last <= 150 && last % 5 == 0 ? last : 0);   /* bien hien tai: vong so ben phai */
+            board_ui_unlock();
+#endif
         }
     } else if (n >= 14 && p[12] == 0x40 && p[13] == 0xFE) {
         on_guidance(p, n);
