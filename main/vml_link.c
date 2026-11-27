@@ -355,8 +355,22 @@ static void on_frame(const uint8_t *p, size_t n)
     if (n == 22 && p[12] == 0x0E && p[13] == 0x00) {
         if (s_handle) esp_spp_write(s_handle, sizeof H1V_INFO - 1, (uint8_t *)H1V_INFO);
         ESP_LOGI(TAG, "app hoi thong tin -> tra loi H1V");
-    } else if (n == 29 && p[12] == 0x01 && p[13] == 0x01) {   /* bien gioi han hien tai o byte 20 */
+    } else if (n >= 23 && n <= 64 && p[12] == 0x01 && p[13] == 0x01) {   /* bien hien tai: byte cuoi truoc 8 byte duoi (29 byte -> byte 20) */
         ++s_n0101;
+        {                                              /* 27/11: con co loai 25 byte (trong nha) -> ban thu: hien hex de xac minh */
+            static uint8_t last[64];
+            static size_t last_n;
+            if (n != 29 && (n != last_n || memcmp(last, p, n))) {
+                memcpy(last, p, n);
+                last_n = n;
+                char t[96];
+                int o = snprintf(t, sizeof t, "0101 (%u):", (unsigned)n);
+                for (size_t i = 14; i < n - 8 && o < (int)sizeof t - 4; i++) o += snprintf(t + o, sizeof t - o, " %02X", p[i]);
+                board_ui_lock();
+                ui_toast(t);
+                board_ui_unlock();
+            }
+        }
         s_cur_at = now_ms();
         if (!s_cur) {
             s_cur = true;
@@ -364,8 +378,8 @@ static void on_frame(const uint8_t *p, size_t n)
             push_live();
             board_ui_unlock();
         }
-        if (p[20] != s_last_lim) {
-            s_last_lim = p[20];
+        if (p[n - 9] != s_last_lim) {
+            s_last_lim = p[n - 9];
             int last = s_last_lim;
             ESP_LOGI(TAG, "VML LIMIT CANDIDATE: %d", last);
 #if VML_SHOW_LIMIT

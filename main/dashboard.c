@@ -614,6 +614,7 @@ void ui_toast(const char *text)
     lv_obj_center(lbl_toast);
     show(toast, true);
     lv_obj_move_foreground(toast);
+    lv_timer_set_period(toast_tmr, strlen(text) > 24 ? 5000 : 2000);   /* dong dai (bao loi / ma goi): de lau cho kip doc */
     lv_timer_reset(toast_tmr);
     lv_timer_resume(toast_tmr);
 }
