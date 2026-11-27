@@ -619,6 +619,32 @@ void ui_toast(const char *text)
     lv_timer_resume(toast_tmr);
 }
 
+/* Bang chu toan man tren lop tren cung (ban VML thu: tom tat log lan chay truoc). Cham hoac het gio thi tat. */
+static lv_obj_t *info_box;
+static void info_close(lv_timer_t *t) { (void)t; if (info_box) { lv_obj_delete(info_box); info_box = NULL; } }   /* timer 1 lan: LVGL tu xoa */
+static void info_click(lv_event_t *e) { (void)e; if (info_box) { lv_obj_delete_async(info_box); info_box = NULL; } }
+void ui_info(const char *text, int ms)
+{
+    info_close(NULL);
+    info_box = lv_obj_create(lv_layer_top());
+    lv_obj_remove_style_all(info_box);
+    lv_obj_set_size(info_box, UI_W, UI_H);
+    lv_obj_set_style_bg_color(info_box, lv_color_hex(0x0B0F1A), 0);
+    lv_obj_set_style_bg_opa(info_box, LV_OPA_COVER, 0);
+    lv_obj_set_style_pad_all(info_box, 6, 0);
+    lv_obj_add_flag(info_box, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_add_event_cb(info_box, info_click, LV_EVENT_CLICKED, NULL);
+    lv_obj_t *l = lv_label_create(info_box);
+    lv_obj_set_width(l, UI_W - 12);
+    lv_label_set_long_mode(l, LV_LABEL_LONG_WRAP);
+    lv_obj_set_style_text_font(l, &ui_font_txt14, 0);
+    lv_obj_set_style_text_color(l, lv_color_white(), 0);
+    lv_obj_set_style_text_line_space(l, -2, 0);
+    lv_label_set_text(l, text);
+    lv_timer_t *t = lv_timer_create(info_close, ms, NULL);
+    lv_timer_set_repeat_count(t, 1);
+}
+
 static void on_click(lv_event_t *e)
 {
     (void)e;

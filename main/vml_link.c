@@ -19,6 +19,9 @@
 #include "esp_log.h"
 #include "esp_timer.h"
 #include "esp_system.h"
+#include "esp_partition.h"
+#include "esp_ota_ops.h"
+#include <stdlib.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/stream_buffer.h"
 #include "freertos/task.h"
@@ -29,6 +32,7 @@
 #include "vml_link.h"
 
 static const char *TAG = "vml";
+static void log_rec(uint8_t type, uint8_t a, uint8_t b, uint8_t c);
 
 #define IMG 60
 #define PKT_MAX 8192
@@ -245,6 +249,7 @@ static void on_guidance(const uint8_t *p, size_t size)
     board_ui_lock();
     if (next_limit) {
         ESP_LOGI(TAG, "BIEN tiep %u m", (unsigned)m);
+        log_rec(5, 2, (uint8_t)((m / 10) >> 8), (uint8_t)(m / 10));
         if (ok_img) memcpy(s_sign_px, s_work, IMG * IMG * 2);
         if (!s_sign || m > s_sign_m + 200) s_sign_min = m;     /* bien moi */
         if (m < s_sign_min) s_sign_min = m;
@@ -255,6 +260,7 @@ static void on_guidance(const uint8_t *p, size_t size)
         }
     } else if (ok_img && is_arrow()) {
         ESP_LOGI(TAG, "RE %u m | %s", (unsigned)m, label);
+        log_rec(5, 1, (uint8_t)((m / 10) >> 8), (uint8_t)(m / 10));
         to_mask();
         snprintf(s_street, sizeof s_street, "%s", label);
         s_turn = true;
@@ -265,6 +271,7 @@ static void on_guidance(const uint8_t *p, size_t size)
         ui_set_nav(true, 3, (int)m, 0, s_street, 0);
     } else if (ok_img) {
         ESP_LOGI(TAG, "CANH BAO %u m | %s", (unsigned)m, label);
+        log_rec(5, 3, (uint8_t)((m / 10) >> 8), (uint8_t)(m / 10));
         hexlog("anh canh bao", p, size > 512 ? 512 : size);
         memcpy(s_warn_px, s_work, IMG * IMG * 2);
         s_warn = true;
@@ -345,6 +352,94 @@ static void reset_all(void)
     board_ui_unlock();
 }
 
+/* ---------- log tu dong vao flash (ban thu) ----------
+ * Ban VML khong dung OTA qua BLE -> khe ota_1 trong. Ghi ban ghi 8 byte vao 64 KB dau khe ota_1:
+ *   [loai][giay 24 bit][d0 d1 d2][0]   loai: 1 goi 0101 ngan (3 byte), 2 goi 0101 29 byte (byte 14,15,20),
+ *   3 noi VML, 4 ngat, 5 chi dan (d0: 1 re / 2 bien tiep / 3 canh bao, d1d2 = met/10), 0x10 bat HUD (d0d1 = so lan).
+ * Lan bat sau: hien tom tat len man (ui_info) de chup; day 3/4 thi xoa sau khi hien. */
+#define LOG_SIZE 0x10000
+static const esp_partition_t *s_log_part;
+static uint32_t s_log_off;
+
+static void log_rec(uint8_t type, uint8_t a, uint8_t b, uint8_t c)
+{
+    if (!s_log_part || s_log_off + 8 > LOG_SIZE) return;
+    uint32_t t = (uint32_t)(esp_timer_get_time() / 1000000);
+    uint8_t r[8] = {type, (uint8_t)(t >> 16), (uint8_t)(t >> 8), (uint8_t)t, a, b, c, 0};
+    if (esp_partition_write(s_log_part, s_log_off, r, 8) == ESP_OK) s_log_off += 8;
+}
+
+static void log_start(void)
+{
+    s_log_part = esp_partition_find_first(ESP_PARTITION_TYPE_APP, ESP_PARTITION_SUBTYPE_APP_OTA_1, NULL);
+    const esp_partition_t *run = esp_ota_get_running_partition();
+    if (!s_log_part || s_log_part == run) { s_log_part = NULL; return; }
+    uint8_t r[8];
+    uint32_t off = 0, boots = 0, n25 = 0, n29 = 0, nc = 0, nd = 0, ng = 0, nbad = 0;
+    int mn[3] = {256, 256, 256}, mx[3] = {-1, -1, -1};
+    uint8_t last25[12][3], lim[10];
+    int k25 = 0, kl = 0, lastlim = -1;
+    bool seen[256] = {0};
+    int distinct = 0;
+    for (; off + 8 <= LOG_SIZE; off += 8) {
+        if (esp_partition_read(s_log_part, off, r, 8) != ESP_OK) break;
+        if (r[0] == 0xFF) break;
+        switch (r[0]) {
+        case 1:
+            ++n25;
+            for (int i = 0; i < 3; i++) { if (r[4 + i] < mn[i]) mn[i] = r[4 + i]; if (r[4 + i] > mx[i]) mx[i] = r[4 + i]; }
+            if (!seen[r[6]]) { seen[r[6]] = true; ++distinct; }
+            memcpy(last25[k25 % 12], r + 4, 3); ++k25;
+            break;
+        case 2:
+            ++n29;
+            if (r[6] != lastlim && kl < 10) { lim[kl++] = r[6]; lastlim = r[6]; }
+            break;
+        case 3: ++nc; break;
+        case 4: ++nd; break;
+        case 5: ++ng; break;
+        case 0x10: ++boots; break;
+        default: ++nbad; break;
+        }
+        if (nbad) break;
+    }
+    s_log_off = off;
+    if (nbad) {                                        /* khe ota_1 con firmware cu / rac: xoa, bat dau log moi */
+        ESP_LOGW(TAG, "log: vung ota_1 khong phai log (%u ban ghi la) -> xoa", (unsigned)nbad);
+        esp_partition_erase_range(s_log_part, 0, LOG_SIZE);
+        s_log_off = 0;
+        log_rec(0x10, 0, 0, 0);
+        return;
+    }
+    if (off && (n25 || n29 || ng)) {
+        char *t = malloc(1100);
+        if (t) {
+            int o = snprintf(t, 1100, "LOG VML (%u bản ghi, %u lần bật). Chạm để tắt\n", (unsigned)(off / 8), (unsigned)boots);
+            if (n25) {
+                o += snprintf(t + o, 1100 - o, "Gói ngắn: %u lần đổi, %d giá trị cuối khác nhau\n b1 %02X..%02X  b2 %02X..%02X  b3 %d..%d\n Cuối:",
+                              (unsigned)n25, distinct, mn[0], mx[0], mn[1], mx[1], mn[2], mx[2]);
+                int s0 = k25 > 12 ? k25 - 12 : 0;
+                for (int i = s0; i < k25 && o < 1000; i++) o += snprintf(t + o, 1100 - o, " %d", last25[i % 12][2]);
+                o += snprintf(t + o, 1100 - o, "\n");
+            }
+            o += snprintf(t + o, 1100 - o, "Gói biển 29B: %u lần, biển:", (unsigned)n29);
+            for (int i = 0; i < kl && o < 1040; i++) o += snprintf(t + o, 1100 - o, " %d", lim[i]);
+            snprintf(t + o, 1100 - o, "\nChỉ dẫn: %u  Nối: %u  Ngắt: %u%s", (unsigned)ng, (unsigned)nc, (unsigned)nd,
+                     off > LOG_SIZE * 3 / 4 ? "\nLog gần đầy: đã xoá để ghi mới" : "");
+            ESP_LOGI(TAG, "%s", t);
+            board_ui_lock();
+            ui_info(t, 30000);
+            board_ui_unlock();
+            free(t);
+        }
+    }
+    if (off > LOG_SIZE * 3 / 4) {
+        esp_partition_erase_range(s_log_part, 0, LOG_SIZE);
+        s_log_off = 0;
+    }
+    log_rec(0x10, (uint8_t)(boots >> 8), (uint8_t)boots, 0);
+}
+
 /* ---------- ghep khung ---------- */
 static const uint8_t MAGIC[4] = {0xA5, 0x5A, 0x37, 0xC3};
 static uint8_t *s_pkt;
@@ -357,10 +452,19 @@ static void on_frame(const uint8_t *p, size_t n)
         ESP_LOGI(TAG, "app hoi thong tin -> tra loi H1V");
     } else if (n >= 23 && n <= 64 && p[12] == 0x01 && p[13] == 0x01) {   /* bien hien tai: byte cuoi truoc 8 byte duoi (29 byte -> byte 20) */
         ++s_n0101;
+        {
+            static uint8_t l25[3], l29[3];
+            static bool h25, h29;
+            if (n == 25 && (!h25 || memcmp(l25, p + 14, 3))) { memcpy(l25, p + 14, 3); h25 = true; log_rec(1, p[14], p[15], p[16]); }
+            if (n == 29) {
+                uint8_t v[3] = {p[14], p[15], p[20]};
+                if (!h29 || memcmp(l29, v, 3)) { memcpy(l29, v, 3); h29 = true; log_rec(2, v[0], v[1], v[2]); }
+            }
+        }
         {                                              /* 27/11: con co loai 25 byte (trong nha) -> ban thu: hien hex de xac minh */
             static uint8_t last[64];
             static size_t last_n;
-            if (n != 29 && (n != last_n || memcmp(last, p, n))) {
+            if (n != 29 && n != 25 && (n != last_n || memcmp(last, p, n))) {
                 memcpy(last, p, n);
                 last_n = n;
                 char t[96];
@@ -445,6 +549,7 @@ static void vml_task(void *arg)
         }
         if (s_open_evt) {
             s_open_evt = false;
+            log_rec(3, 0, 0, 0);
             s_used = s_expect = 0;
             s_lost_at = 0;
             s_last_lim = -1;                       /* noi lai: neu VML gui lai bien hien tai thi ve lai (khong xoa bien cu) */
@@ -473,6 +578,7 @@ static void vml_task(void *arg)
         }
         if (s_close_evt) {                         /* chua xoa: VML thuong noi lai ngay, chi dan cu van dung */
             s_close_evt = false;
+            log_rec(4, 0, 0, 0);
             s_lost_at = now_ms();
             board_ui_lock();
             ui_set_phone(false);
@@ -602,6 +708,7 @@ void vml_link_start(void)
     }
     esp_bt_io_cap_t io = ESP_BT_IO_CAP_NONE;
     esp_bt_gap_set_security_param(ESP_BT_SP_IOCAP_MODE, &io, sizeof io);
+    log_start();
     xTaskCreate(vml_task, "vml", 8192, NULL, 4, NULL);
     ESP_LOGI(TAG, "SPP len, RAM trong con %u byte", (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
 }

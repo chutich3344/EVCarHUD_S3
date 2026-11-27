@@ -13,4 +13,4 @@ idf_component_register(
          "ui_font_sign32.c" "ui_font_clock60.c" "ui_font_clock80.c" "ui_logo.c"
          "ui_font_num54.c" "ui_font_num30.c" "ui_font_speed72.c" "ui_font_speed110.c" "ui_font_sign40.c" "ui_font_unit22.c" "ui_font_onoff44.c"
     INCLUDE_DIRS "."
-    REQUIRES driver esp_lcd esp_timer esp_adc nvs_flash bt esp_app_format app_update)
+    REQUIRES driver esp_lcd esp_timer esp_adc nvs_flash bt esp_app_format app_update esp_partition)

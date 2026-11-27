@@ -170,6 +170,7 @@ int main(int argc, char **argv)
     NOAL(); ui_set_speed(42); run(600); shot("g_co_toc_do_re"); hold(15);
     NONAV(); ui_set_speed(58); run(600); shot("h_vuot_toc_do"); hold(15);
     ui_set_speed(-1); ui_set_mode(UI_MODE_DAY); NAV(300); NEXT(); run(500); shot("i_ban_ngay"); hold(15);
+    ui_info("LOG VML (1834 bản ghi, 3 lần bật). Chạm để tắt\nGói ngắn: 1520 lần đổi, 61 giá trị cuối khác nhau\n b1 86..86  b2 A0..A4  b3 0..72\n Cuối: 42 40 37 33 28 22 15 9 4 0 0 0\nGói biển 29B: 14 lần, biển: 50 60 80 60 50 40\nChỉ dẫn: 230  Nối: 9  Ngắt: 8", 30000); run(300); shot("j_tom_tat_log");
     { lv_mem_monitor_t mm; lv_mem_monitor(&mm); printf("LVGL mem: tong %u, dung max %u, phan manh %u%%\n", (unsigned)mm.total_size, (unsigned)mm.max_used, mm.frag_pct); }
     return 0;
 }
