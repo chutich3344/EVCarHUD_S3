@@ -49,6 +49,9 @@ static StreamBufferHandle_t s_rx;
 static volatile uint32_t s_handle;
 static volatile int s_state;                 /* 0 chua len, 1 cho ket noi, 2 da noi, -1 loi */
 static volatile bool s_open_evt, s_close_evt, s_auth_fail;
+static int64_t s_lost_at;                    /* VML vua ngat: giu man 30 s cho no noi lai (VML hay ngat/noi lai) */
+static int s_last_lim = -1;
+#define GRACE_MS 30000
 
 /* ---------- anh ---------- */
 static uint16_t *s_work;                     /* RGB565 60x60 vua giai ma */
@@ -182,7 +185,7 @@ static void push_live(void)
         ui_set_speed(-1);
     }
     (void)live;
-    ui_set_keep_on(s_handle != 0);                 /* app dang noi: luon o man chay (bien hien tai / cho chi dan) */
+    ui_set_keep_on(s_handle != 0 || s_lost_at != 0);                 /* app dang noi: luon o man chay (bien hien tai / cho chi dan) */
 }
 
 /* Bien vua qua (con <= 60 m roi het) thanh bien hien tai, thay vong so ben trai */
@@ -346,7 +349,6 @@ static void on_frame(const uint8_t *p, size_t n)
         if (s_handle) esp_spp_write(s_handle, sizeof H1V_INFO - 1, (uint8_t *)H1V_INFO);
         ESP_LOGI(TAG, "app hoi thong tin -> tra loi H1V");
     } else if (n == 29 && p[12] == 0x01 && p[13] == 0x01) {   /* nghi la bien gioi han hien tai o byte 20 (dang xac minh) */
-        static int last = -1;
         s_cur_at = now_ms();
         if (!s_cur) {
             s_cur = true;
@@ -354,8 +356,9 @@ static void on_frame(const uint8_t *p, size_t n)
             push_live();
             board_ui_unlock();
         }
-        if (p[20] != last) {
-            last = p[20];
+        if (p[20] != s_last_lim) {
+            s_last_lim = p[20];
+            int last = s_last_lim;
             ESP_LOGI(TAG, "VML LIMIT CANDIDATE: %d", last);
 #if VML_SHOW_LIMIT
             board_ui_lock();
@@ -399,6 +402,8 @@ static void vml_task(void *arg)
         if (s_open_evt) {
             s_open_evt = false;
             s_used = s_expect = 0;
+            s_lost_at = 0;
+            s_last_lim = -1;                       /* noi lai: VML gui lai bien hien tai, phai ve lai */
             board_ui_lock();
             ui_set_phone(true);
             s_data = true;                         /* VML noi la len man chay ngay, khong doi goi dau tien */
@@ -408,12 +413,16 @@ static void vml_task(void *arg)
             ui_set_keep_on(true);
             board_ui_unlock();
         }
-        if (s_close_evt) {
+        if (s_close_evt) {                         /* chua xoa: VML thuong noi lai ngay, chi dan cu van dung */
             s_close_evt = false;
-            reset_all();
+            s_lost_at = now_ms();
             board_ui_lock();
             ui_set_phone(false);
             board_ui_unlock();
+        }
+        if (s_lost_at && now_ms() - s_lost_at > GRACE_MS) {
+            s_lost_at = 0;
+            reset_all();
         }
         if (s_auth_fail) {
             s_auth_fail = false;
@@ -477,7 +486,7 @@ static void spp_cb(esp_spp_cb_event_t ev, esp_spp_cb_param_t *p)
         s_handle = 0;
         s_state = 1;
         s_close_evt = true;
-        ESP_LOGI(TAG, "VietMap Live ngat");
+        ESP_LOGI(TAG, "VietMap Live ngat (status %d)", p->close.status);
         break;
     case ESP_SPP_DATA_IND_EVT:
         if (xStreamBufferSend(s_rx, p->data_ind.data, p->data_ind.len, 0) != p->data_ind.len)
@@ -533,6 +542,6 @@ void vml_link_start(void)
     }
     esp_bt_io_cap_t io = ESP_BT_IO_CAP_NONE;
     esp_bt_gap_set_security_param(ESP_BT_SP_IOCAP_MODE, &io, sizeof io);
-    xTaskCreate(vml_task, "vml", 6144, NULL, 4, NULL);
+    xTaskCreate(vml_task, "vml", 8192, NULL, 4, NULL);
     ESP_LOGI(TAG, "SPP len, RAM trong con %u byte", (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
 }
