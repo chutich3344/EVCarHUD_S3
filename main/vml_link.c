@@ -378,8 +378,8 @@ static void on_frame(const uint8_t *p, size_t n)
             push_live();
             board_ui_unlock();
         }
-        if (p[n - 9] != s_last_lim) {
-            s_last_lim = p[n - 9];
+        if (n == 29 && p[20] != s_last_lim) {           /* 27/11: loai 25 byte (86 A0 xx) chua ro nghia (toc do?) -> chi hien hex, khong dung lam bien */
+            s_last_lim = p[20];
             int last = s_last_lim;
             ESP_LOGI(TAG, "VML LIMIT CANDIDATE: %d", last);
 #if VML_SHOW_LIMIT
