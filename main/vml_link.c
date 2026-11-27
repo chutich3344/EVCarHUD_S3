@@ -420,8 +420,8 @@ static void vml_task(void *arg)
             ui_set_phone(true);
             if (++s_conn_n > 1) {                  /* ban thu: bao so goi da nhan de biet VML noi lai co gui lai khong */
                 char t[96];
-                snprintf(t, sizeof t, "Nối lại #%d · biển %d · gói %d/%d%s", s_conn_n - 1,
-                         s_last_lim_shown, s_n0101, s_n40fe, s_drop ? " · mất" : "");
+                snprintf(t, sizeof t, "Nối lại %d, biển %d, gói %d/%d%s", s_conn_n - 1,
+                         s_last_lim_shown, s_n0101, s_n40fe, s_drop ? ", mất" : "");
                 ui_toast(t);
             }
             {
