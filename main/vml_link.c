@@ -33,8 +33,9 @@ static const char *TAG = "vml";
 #define IMG 60
 #define PKT_MAX 8192
 /* VML chi gui goi khi co thay doi (dung den do co the im ca phut) -> giu lau, chi an khi qua lau khong cap nhat */
-#define TURN_MS 120000
-#define SIGN_MS 60000
+/* 27/11: dung yen (trong nha) VML khong gui gi them -> 2 phut la an mat chi dan; giu 10 phut */
+#define TURN_MS 600000
+#define SIGN_MS 300000
 #define WARN_MS 20000
 #define VML_SHOW_LIMIT 1     /* goi 0101 byte 20 = bien hien tai (27/11: mau 1 khop 50, anh cho chay thu) */
 
@@ -51,8 +52,11 @@ static volatile uint32_t s_handle;
 static volatile int s_state;                 /* 0 chua len, 1 cho ket noi, 2 da noi, -1 loi */
 static volatile bool s_open_evt, s_close_evt, s_auth_fail;
 static int64_t s_lost_at;                    /* VML vua ngat: giu man 30 s cho no noi lai (VML hay ngat/noi lai) */
-static int s_last_lim = -1;
-#define GRACE_MS 30000
+static int s_last_lim = -1, s_last_lim_shown = -1;
+#define GRACE_MS 600000                     /* 27/11: ngat lau 10 phut moi xoa (VML ngat/noi lai lien tuc, noi lai khong gui lai) */
+static int s_conn_n, s_n0101, s_n40fe;
+static volatile int s_drop;
+static int64_t s_last_rx;
 
 /* ---------- anh ---------- */
 static uint16_t *s_work;                     /* RGB565 60x60 vua giai ma */
@@ -349,7 +353,8 @@ static void on_frame(const uint8_t *p, size_t n)
     if (n == 22 && p[12] == 0x0E && p[13] == 0x00) {
         if (s_handle) esp_spp_write(s_handle, sizeof H1V_INFO - 1, (uint8_t *)H1V_INFO);
         ESP_LOGI(TAG, "app hoi thong tin -> tra loi H1V");
-    } else if (n == 29 && p[12] == 0x01 && p[13] == 0x01) {   /* nghi la bien gioi han hien tai o byte 20 (dang xac minh) */
+    } else if (n == 29 && p[12] == 0x01 && p[13] == 0x01) {   /* bien gioi han hien tai o byte 20 */
+        ++s_n0101;
         s_cur_at = now_ms();
         if (!s_cur) {
             s_cur = true;
@@ -360,6 +365,7 @@ static void on_frame(const uint8_t *p, size_t n)
         if (p[20] != s_last_lim) {
             s_last_lim = p[20];
             int last = s_last_lim;
+            s_last_lim_shown = last;
             ESP_LOGI(TAG, "VML LIMIT CANDIDATE: %d", last);
 #if VML_SHOW_LIMIT
             board_ui_lock();
@@ -368,6 +374,7 @@ static void on_frame(const uint8_t *p, size_t n)
 #endif
         }
     } else if (n >= 14 && p[12] == 0x40 && p[13] == 0xFE) {
+        ++s_n40fe;
         on_guidance(p, n);
     } else {
         hexlog("goi la", p, n > 256 ? 256 : n);
@@ -400,13 +407,23 @@ static void vml_task(void *arg)
     uint8_t buf[256];
     for (;;) {
         size_t n = xStreamBufferReceive(s_rx, buf, sizeof buf, pdMS_TO_TICKS(250));
+        if (n) {
+            if (s_used && now_ms() - s_last_rx > 1000) s_used = s_expect = 0;   /* khung cu bi dut: bo, bat dau lai (nhu ban test V5) */
+            s_last_rx = now_ms();
+        }
         if (s_open_evt) {
             s_open_evt = false;
             s_used = s_expect = 0;
             s_lost_at = 0;
-            s_last_lim = -1;                       /* noi lai: VML gui lai bien hien tai, phai ve lai */
+            s_last_lim = -1;                       /* noi lai: neu VML gui lai bien hien tai thi ve lai (khong xoa bien cu) */
             board_ui_lock();
             ui_set_phone(true);
+            if (++s_conn_n > 1) {                  /* ban thu: bao so goi da nhan de biet VML noi lai co gui lai khong */
+                char t[96];
+                snprintf(t, sizeof t, "Nối lại #%d · biển %d · gói %d/%d%s", s_conn_n - 1,
+                         s_last_lim_shown, s_n0101, s_n40fe, s_drop ? " · mất" : "");
+                ui_toast(t);
+            }
             {
                 static bool told;                  /* lan noi dau sau khi HUD vua sap: bao lai ly do (luc khoi dong de bi lo) */
                 esp_reset_reason_t rr = esp_reset_reason();
@@ -498,8 +515,10 @@ static void spp_cb(esp_spp_cb_event_t ev, esp_spp_cb_param_t *p)
         ESP_LOGI(TAG, "VietMap Live ngat (status %d)", p->close.status);
         break;
     case ESP_SPP_DATA_IND_EVT:
-        if (xStreamBufferSend(s_rx, p->data_ind.data, p->data_ind.len, 0) != p->data_ind.len)
+        if (xStreamBufferSend(s_rx, p->data_ind.data, p->data_ind.len, pdMS_TO_TICKS(30)) != p->data_ind.len) {
+            ++s_drop;
             ESP_LOGW(TAG, "day bo dem, mat %u byte", p->data_ind.len);
+        }
         break;
     default:
         break;
@@ -517,7 +536,7 @@ void vml_link_start(void)
     s_sign_px = heap_caps_calloc(1, IMG * IMG * 3, MALLOC_CAP_8BIT);
     s_warn_px = heap_caps_calloc(1, IMG * IMG * 2, MALLOC_CAP_8BIT);
     s_lim_px = heap_caps_calloc(1, IMG * IMG * 3, MALLOC_CAP_8BIT);
-    s_rx = xStreamBufferCreate(12 * 1024, 1);
+    s_rx = xStreamBufferCreate(16 * 1024, 1);
     if (!s_pkt || !s_work || !s_nav_px || !s_sign_px || !s_warn_px || !s_rx) {
         ESP_LOGE(TAG, "thieu RAM");
         s_state = -1;
