@@ -22,6 +22,7 @@
 #include "esp_partition.h"
 #include "esp_ota_ops.h"
 #include <stdlib.h>
+#include <stdarg.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/stream_buffer.h"
 #include "freertos/task.h"
@@ -33,6 +34,7 @@
 
 static const char *TAG = "vml";
 static void log_rec(uint8_t type, uint8_t a, uint8_t b, uint8_t c);
+static void log_txt(const char *fmt, ...);
 
 #define IMG 60
 #define PKT_MAX 8192
@@ -57,6 +59,7 @@ static volatile int s_state;                 /* 0 chua len, 1 cho ket noi, 2 da 
 static volatile bool s_open_evt, s_close_evt, s_auth_fail;
 static int64_t s_lost_at;                    /* VML vua ngat: giu man 30 s cho no noi lai (VML hay ngat/noi lai) */
 static int s_last_lim = -1, s_last_lim_shown = -1;
+#define TURN_LOST_MS 60000                  /* v10: thoat VML (ngat > 1 phut) -> xoa mui ten re, giu bien */
 #define GRACE_MS 600000                     /* 27/11: ngat lau 10 phut moi xoa (VML ngat/noi lai lien tuc, noi lai khong gui lai) */
 static int s_conn_n, s_n0101, s_n40fe;
 static volatile int s_drop;
@@ -163,7 +166,7 @@ static int s_turn_code = 3;
 static uint32_t s_turn_m, s_sign_m, s_warn_m, s_sign_min;
 static int64_t s_turn_at, s_sign_at, s_warn_at, s_cur_at;
 static bool s_cur;                           /* dang co goi bien hien tai (0101): giu man chay ca khi khong dan duong */
-static char s_street[96], s_last_text[96];
+static char s_street[96], s_last_text[96], s_warn_txt[96];
 
 static int64_t now_ms(void) { return esp_timer_get_time() / 1000; }
 
@@ -172,14 +175,17 @@ static void push_alerts(void)                /* goi trong khoa UI */
     ui_alert_t a;
     if (s_warn) {
         a = (ui_alert_t){3, (int)s_warn_m, 0};
+        ui_set_alert_text(s_warn_txt);
         ui_set_alert_icon(&s_warn_dsc);
         ui_set_alerts(&a, 1);
     } else if (s_sign) {
         a = (ui_alert_t){8, (int)s_sign_m, -1};
+        ui_set_alert_text("Biển tốc độ tiếp theo");
         ui_set_alert_icon(&s_sign_dsc);
         ui_set_alerts(&a, 1);
     } else {
         ui_set_alerts(NULL, 0);
+        ui_set_alert_text("");
         ui_set_alert_icon(NULL);
     }
 }
@@ -262,6 +268,7 @@ static void on_guidance(const uint8_t *p, size_t size)
         ESP_LOGI(TAG, "RE %u m | %s", (unsigned)m, label);
         log_rec(5, 1, (uint8_t)((m / 10) >> 8), (uint8_t)(m / 10));
         to_mask();
+        if (strcmp(label, s_street)) log_txt("RE %um %s", (unsigned)m, label);
         snprintf(s_street, sizeof s_street, "%s", label);
         s_turn = true;
         s_turn_m = m;
@@ -277,9 +284,11 @@ static void on_guidance(const uint8_t *p, size_t size)
         s_warn = true;
         s_warn_m = m;
         s_warn_at = t;
+        snprintf(s_warn_txt, sizeof s_warn_txt, "%s", label);
         if (strcmp(label, s_last_text)) {
             snprintf(s_last_text, sizeof s_last_text, "%s", label);
-            ui_toast(label);
+            log_txt("CB %um %s", (unsigned)m, label);
+            if (s_turn) ui_toast(label);      /* v10: khong dan duong -> chu da o the canh bao, khong toast */
         }
     } else if (jpg && !ok_img) {                              /* anh hong (khong giai duoc): van hien re + ten duong */
         ESP_LOGI(TAG, "RE (anh loi) %u m | %s", (unsigned)m, label);
@@ -298,6 +307,7 @@ static void on_guidance(const uint8_t *p, size_t size)
     } else {
         ESP_LOGI(TAG, "CHU %u m | %s", (unsigned)m, label);
         if (strcmp(label, s_last_text)) {
+            log_txt("CHU %um %s", (unsigned)m, label);
             snprintf(s_last_text, sizeof s_last_text, "%s", label);
             ui_toast(label);
         }
@@ -380,6 +390,67 @@ static void log_rec(uint8_t type, uint8_t a, uint8_t b, uint8_t c)
     if (esp_partition_write(s_log_part, s_log_off, r, 8) == ESP_OK) s_log_off += 8;
 }
 
+/* v10: vung chu 64 KB ngay sau vung ban ghi: moi dong "giay noi-dung\n" (nhan canh bao / camera / tram thu phi, goi la) */
+#define TXT_SIZE 0x10000
+static uint32_t s_txt_off;
+static int s_txt_lines;
+
+static void log_txt(const char *fmt, ...)
+{
+    if (!s_log_part) return;
+    char b[200];
+    int o = snprintf(b, sizeof b, "%u ", (unsigned)(esp_timer_get_time() / 1000000));
+    va_list ap;
+    va_start(ap, fmt);
+    o += vsnprintf(b + o, sizeof b - o, fmt, ap);
+    va_end(ap);
+    if (o > (int)sizeof b - 2) o = sizeof b - 2;
+    b[o++] = '\n';
+    if (s_txt_off + o > TXT_SIZE) return;
+    if (esp_partition_write(s_log_part, LOG_SIZE + s_txt_off, b, o) == ESP_OK) { s_txt_off += o; ++s_txt_lines; }
+}
+
+/* Doc vung chu: tim cuoi (byte 0xFF dau tien), dem dong, lay toi da 4 dong cuoi. Vung con rac (firmware cu) -> xoa. */
+static void txt_scan(char *tail, size_t tn)
+{
+    uint8_t c[256];
+    uint32_t off = 0;
+    int lines = 0;
+    bool bad = false, end = false;
+    char ring[4][64];
+    int k = 0, col = 0;
+    for (; off < TXT_SIZE && !end; off += sizeof c) {
+        if (esp_partition_read(s_log_part, LOG_SIZE + off, c, sizeof c) != ESP_OK) break;
+        for (size_t i = 0; i < sizeof c; i++) {
+            if (c[i] == 0xFF) { off += i; end = true; break; }
+            if (off + i == 0 && (c[i] < '0' || c[i] > '9')) { bad = true; end = true; break; }
+            if (c[i] == '\n') { ring[k % 4][col < 63 ? col : 63] = 0; ++k; ++lines; col = 0; continue; }
+            if (col < 63) ring[k % 4][col] = (char)c[i];
+            ++col;
+        }
+        if (end) break;
+    }
+    if (bad) {
+        esp_partition_erase_range(s_log_part, LOG_SIZE, TXT_SIZE);
+        off = 0; lines = 0; k = 0;
+    }
+    if (off > TXT_SIZE) off = TXT_SIZE;
+    s_txt_off = off;
+    s_txt_lines = lines;
+    tail[0] = 0;
+    if (!lines) return;
+    int o = snprintf(tail, tn, "\nChữ: %d dòng, cuối:", lines);
+    for (int i = k > 4 ? k - 4 : 0; i < k && o < (int)tn - 4; i++) {
+        /* bo 3 byte UTF-8 dang do o cuoi neu cat ngang ky tu */
+        char *l = ring[i % 4];
+        size_t L = strlen(l);
+        while (L && ((unsigned char)l[L - 1] & 0xC0) == 0x80) --L;
+        if (L && (unsigned char)l[L - 1] >= 0xC0) --L;
+        l[L] = 0;
+        o += snprintf(tail + o, tn - o, "\n %s", l);
+    }
+}
+
 static void log_start(void)
 {
     /* v9: khe KHONG dang chay (truoc chi dung ota_1: neu firmware nap vao ota_1 thi log tat ma khong bao) */
@@ -422,18 +493,22 @@ static void log_start(void)
         if (nbad) break;
     }
     s_log_off = off;
+    char tail[330];
+    if (!nbad) txt_scan(tail, sizeof tail);
+    else tail[0] = 0;
     if (nbad) {                                        /* khe ota_1 con firmware cu / rac: xoa, bat dau log moi */
         ESP_LOGW(TAG, "log: vung ota_1 khong phai log (%u ban ghi la) -> xoa", (unsigned)nbad);
-        esp_partition_erase_range(s_log_part, 0, LOG_SIZE);
+        esp_partition_erase_range(s_log_part, 0, LOG_SIZE + TXT_SIZE);
         s_log_off = 0;
+        s_txt_off = 0;
         log_rec(0x10, 0, 0, 0);
         board_ui_lock();
         ui_info("LOG VML: lần đầu, đã chuẩn bị vùng ghi log.\nAnh chạy xe có VML, lần bật sau sẽ hiện bảng.\nChạm để tắt", 10000);
         board_ui_unlock();
         return;
     }
-    if (off && (n25 || n29 || ng)) {
-        char *t = malloc(1100);
+    if (off && (n25 || n29 || ng || s_txt_lines)) {
+        char *t = malloc(1500);
         if (t) {
             int o = snprintf(t, 1100, "LOG VML (%u bản ghi, %u lần bật). Chạm để tắt\n", (unsigned)(off / 8), (unsigned)boots);
             if (n25) {
@@ -445,8 +520,9 @@ static void log_start(void)
             }
             o += snprintf(t + o, 1100 - o, "Gói biển 29B: %u lần, biển:", (unsigned)n29);
             for (int i = 0; i < kl && o < 1040; i++) o += snprintf(t + o, 1100 - o, " %d", lim[i]);
-            snprintf(t + o, 1100 - o, "\nChỉ dẫn: %u  Nối: %u  Ngắt: %u%s", (unsigned)ng, (unsigned)nc, (unsigned)nd,
-                     off > LOG_SIZE * 3 / 4 ? "\nLog gần đầy: đã xoá để ghi mới" : "");
+            o += snprintf(t + o, 1100 - o, "\nChỉ dẫn: %u  Nối: %u  Ngắt: %u%s", (unsigned)ng, (unsigned)nc, (unsigned)nd,
+                     off > LOG_SIZE * 3 / 4 || s_txt_off > TXT_SIZE * 3 / 4 ? "\nLog gần đầy: đã xoá để ghi mới" : "");
+            snprintf(t + o, 1500 - o, "%s", tail);
             ESP_LOGI(TAG, "%s", t);
             board_ui_lock();
             ui_info(t, 30000);
@@ -461,9 +537,10 @@ static void log_start(void)
         ui_info(t, 10000);
         board_ui_unlock();
     }
-    if (off > LOG_SIZE * 3 / 4) {
-        esp_partition_erase_range(s_log_part, 0, LOG_SIZE);
+    if (off > LOG_SIZE * 3 / 4 || s_txt_off > TXT_SIZE * 3 / 4) {
+        esp_partition_erase_range(s_log_part, 0, LOG_SIZE + TXT_SIZE);
         s_log_off = 0;
+        s_txt_off = 0;
     }
     log_rec(0x10, (uint8_t)(boots >> 8), (uint8_t)boots, 0);
 }
@@ -534,6 +611,12 @@ static void on_frame(const uint8_t *p, size_t n)
         hexlog("goi la", p, n > 256 ? 256 : n);
         static int last_cmd = -1;                      /* ban thu: bao goi la (co the la lenh xoa chi dan) */
         int cmd = n > 13 ? p[12] << 8 | p[13] : -2;
+        {
+            char hx[3 * 40 + 1];
+            int o = 0;
+            for (size_t i = 0; i < n && i < 40; i++) o += snprintf(hx + o, sizeof hx - o, "%02X", p[i]);
+            log_txt("LA %04X %u %s", cmd & 0xFFFF, (unsigned)n, hx);
+        }
         if (cmd != last_cmd) {
             last_cmd = cmd;
             char t[48];
@@ -610,6 +693,15 @@ static void vml_task(void *arg)
             s_lost_at = now_ms();
             board_ui_lock();
             ui_set_phone(false);
+            board_ui_unlock();
+        }
+        if (s_lost_at && s_turn && now_ms() - s_lost_at > TURN_LOST_MS) {
+            board_ui_lock();
+            s_turn = false;
+            ui_set_nav(false, 0, -1, 0, s_street, 0);
+            ui_set_nav_icon(NULL);
+            push_alerts();
+            push_live();
             board_ui_unlock();
         }
         if (s_lost_at && now_ms() - s_lost_at > GRACE_MS) {

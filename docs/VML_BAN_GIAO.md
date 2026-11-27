@@ -35,14 +35,15 @@ Khung: `A5 5A 37 C3` | độ dài BE32 (tổng = len + 8) | ... | lệnh byte 12
 | v7 | 3a2b1c7 | đọc gói 0101 25 byte, toast hex |
 | v8 | 3941f28 | tự ghi log vào flash, lần bật sau hiện bảng LOG VML |
 | v9 | xem git log | luôn hiện bảng LOG VML (cả khi trống), log ghi vào khe không chạy, ẩn biển tiếp/mũi tên đã qua |
+| v10 | xem git log | không dẫn đường: thẻ cảnh báo chiếm cả cột phải (ảnh 72 px + khoảng cách + chữ, vd trạm thu phí + giá vé); ngắt VML > 1 phút xoá mũi tên rẽ; log thêm vùng chữ 64 KB (nhãn cảnh báo, tên đường, gói lạ hex) |
 
 ## 5. Log (không có Wi-Fi nên không gửi lên mạng)
-Ghi vào 64 KB đầu khe firmware không chạy (thường `ota_1` = 0x200000). Bản ghi 8 byte `[loại][giây 24 bit][d0 d1 d2][0]`: 1 gói ngắn, 2 gói biển 29 B, 3 nối, 4 ngắt, 5 chỉ dẫn (d0 1 rẽ / 2 biển tiếp / 3 cảnh báo, d1d2 = m/10), 0x10 bật HUD. Nạp lại firmware ở 0x0 **không xoá** log.
+Ghi vào 64 KB đầu khe firmware không chạy (v10: thêm 64 KB chữ ngay sau, mỗi dòng `giây loại nội-dung`) (thường `ota_1` = 0x200000). Bản ghi 8 byte `[loại][giây 24 bit][d0 d1 d2][0]`: 1 gói ngắn, 2 gói biển 29 B, 3 nối, 4 ngắt, 5 chỉ dẫn (d0 1 rẽ / 2 biển tiếp / 3 cảnh báo, d1d2 = m/10), 0x10 bật HUD. Nạp lại firmware ở 0x0 **không xoá** log.
 
 **Lấy log bằng cáp USB:** `pip install esptool` rồi `python tools/vml_log/doc_log_vml.py [COMx]` → ra `log-vml-28-<ngày>.txt` (+ `.bin`). Không xoá log, rút cáp HUD chạy lại bình thường.
 
 ## 6. Việc còn mở (theo thứ tự)
-1. **Tốc độ**: dùng log (loại 1) đối chiếu tốc độ thực tế để xác minh byte cuối gói 25 byte (km/h? có hệ số?). Nếu đúng: `ui_set_speed()` từ gói này. Nếu VML không gửi tốc độ: phương án bản gộp 3.0 lấy GPS điện thoại qua BLE.
+1. **Tốc độ**: dòng HUD VietMap thật lấy tốc độ từ OBD → gần như chắc VML không gửi; hướng chính là GPS điện thoại qua BLE (bản 3.0). Vẫn dùng log (loại 1) đối chiếu tốc độ thực tế để xác minh byte cuối gói 25 byte (km/h? có hệ số?). Nếu đúng: `ui_set_speed()` từ gói này. Nếu VML không gửi tốc độ: phương án bản gộp 3.0 lấy GPS điện thoại qua BLE.
 2. **Camera / cảnh báo**: app hiện camera 130 m, 156 m nhưng HUD không hiện. Log loại 5 d0=3 cho biết VML có gửi qua BT không. Nếu có mà không hiện → sửa `is_arrow()`/nhánh cảnh báo; nếu không gửi → giới hạn của VML.
 3. **Ảnh làn đường** (khi không dẫn đường, mũi tên làn 314 m): kiểm tra tương tự mục 2.
 4. Ẩn các toast chẩn đoán khi ổn định.

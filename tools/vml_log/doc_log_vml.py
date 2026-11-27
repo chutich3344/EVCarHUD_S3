@@ -15,7 +15,7 @@ Ban ghi 8 byte: [loai][giay 24 bit][d0 d1 d2][0]
 import datetime, os, subprocess, sys, tempfile
 
 SLOTS = {"ota_1": 0x200000, "ota_0": 0x10000}
-SIZE = 0x10000
+SIZE = 0x20000            # 64 KB ban ghi + 64 KB chu (tu v10)
 NAMES = {1: "goi_ngan", 2: "bien_29B", 3: "NOI", 4: "NGAT", 5: "chi_dan", 0x10: "BAT_HUD"}
 GUIDE = {1: "re", 2: "bien_tiep", 3: "canh_bao"}
 
@@ -62,7 +62,13 @@ def main():
         f = os.path.join(tmp, name + ".bin")
         print(f"== Doc {name} ({hex(addr)}) ...")
         read_flash(port, addr, f)
-        rows, bad = decode(open(f, "rb").read())
+        raw = open(f, "rb").read()
+        rows, bad = decode(raw[:0x10000])
+        txt = raw[0x10000:].split(b"\xff", 1)[0]
+        if txt[:1].isdigit():
+            rows.append("")
+            rows.append("---- CHU (giay noi-dung): CB canh bao/camera/tram, RE re, CHU chu, LA goi la ----")
+            rows += txt.decode("utf-8", "replace").splitlines()
         print(f"   {len(rows)} ban ghi hop le")
         if rows and not bad and (best is None or len(rows) > len(best[1])):
             best = (name, rows, f)

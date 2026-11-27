@@ -150,7 +150,7 @@ static void build_two(void)
     lv_obj_add_flag(w_limg, LV_OBJ_FLAG_HIDDEN);
     w_vtile = ui_partner_tile(w_sc, UI_SRC_VML, 44);
     w_vtxt = mk_label_w(w_sc, &ui_font_cap12, 0, 0, W_CW - 2, LV_TEXT_ALIGN_CENTER);
-    lv_label_set_text(w_vtxt, "Chưa có chỉ dẫn rẽ");
+    lv_label_set_text(w_vtxt, "Chờ biển báo, camera");
     lv_obj_add_flag(w_vtile, LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_flag(w_vtxt, LV_OBJ_FLAG_HIDDEN);
 
@@ -345,6 +345,10 @@ static void render_two(void)
     lv_obj_set_style_text_color(w_clk, fg, 0);
 
     /* --- the bien --- */
+    bool full = bs && !nv && lo == 2;                              /* v10 VML khong dan duong: the canh bao chiem ca cot phai */
+    show(w_sc, !full);
+    lv_obj_set_y(w_lo, full ? W_Y : W_Y + W_HALF + 8);
+    lv_obj_set_height(w_lo, full ? W_H : W_HALF);
     int sh = lo ? W_HALF : W_H;
     lv_obj_set_height(w_sc, sh);
     show(w_arr, nv);
@@ -435,6 +439,7 @@ static void render_two(void)
 
     /* --- o duoi --- */
 lower:
+    lv_obj_set_height(w_lo_lab, LV_SIZE_CONTENT);
     lv_obj_set_style_text_font(w_lo_lab, lo == 3 ? &ui_font_txt14 : &ui_font_cap12, 0);
     show(w_lo, lo != 0);
     show(w_lo_img, lo == 2);
@@ -482,9 +487,26 @@ lower:
         } else {
             fmt_dist2(num, sizeof num, &unit, ev->dist);
         }
+        if (full) {                                                /* v10: anh to + khoang cach to + chu (camera / tram thu phi + gia ve) */
+            const int IM = 72;
+            lv_image_set_scale(w_lo_img, (uint32_t)(IM * 256 / (vml_alert_img ? (int)vml_alert_img->header.w : 48)));
+            lv_obj_set_pos(w_lo_img, (W_CW - 2 - IM) / 2, 10);
+            const lv_font_t *f = text_w(num, &ui_font_num54) + 30 > W_CW - 8 ? &ui_font_num30 : &ui_font_num54;
+            int nb = 10 + IM + 8 + baseline(f) * 95 / 100;
+            w_num_unit(w_lo_num, w_lo_unit, num, unit, f, W_CW - 4, nb);
+            show(w_lo_lab, vml_alert_txt[0] != 0);
+            lv_obj_set_style_text_font(w_lo_lab, &ui_font_txt14, 0);
+            lv_obj_set_width(w_lo_lab, W_CW - 12);
+            lv_obj_set_x(w_lo_lab, 4);
+            lv_obj_set_height(w_lo_lab, 3 * (int)ui_font_txt14.line_height);   /* LONG_DOT: xuong dong, qua 3 dong thi ... */
+            lv_label_set_text(w_lo_lab, vml_alert_txt);
+            lv_obj_set_style_text_color(w_lo_lab, night ? lv_color_white() : lv_color_hex(0x14112B), 0);
+            lv_obj_set_y(w_lo_lab, nb + 10);
+        } else {
         show(w_lo_lab, false);
         lv_obj_set_pos(w_lo_img, (W_CW - 2 - 36) / 2, 10);
         w_num_unit(w_lo_num, w_lo_unit, num, unit, &ui_font_num30, W_CW - 4, 10 + 36 + 8 + baseline(&ui_font_num30) * 95 / 100 + 4);
+        }
         lv_color_t c = night ? lv_color_hex(0xFFD400) : lv_color_hex(0xB45309);
         lv_obj_set_style_text_color(w_lo_num, c, 0);
         lv_obj_set_style_text_color(w_lo_unit, c, 0);

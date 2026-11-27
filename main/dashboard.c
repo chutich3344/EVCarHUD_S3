@@ -94,7 +94,8 @@ static lv_timer_t *blink_tmr, *toast_tmr;
 /* --- trang thai --- */
 static int speed = -2, limit = -1, level = -1;
 static bool nav_on, has_route;
-static const lv_image_dsc_t *vml_nav_img, *vml_alert_img, *vml_limit_img;   /* ban VML: anh tu app (NULL = mac dinh) */
+static const lv_image_dsc_t *vml_nav_img, *vml_alert_img, *vml_limit_img;
+static char vml_alert_txt[96];                    /* ban VML: chu kem canh bao (camera, tram thu phi + gia ve...) */   /* ban VML: anh tu app (NULL = mac dinh) */
 static bool keep_on;
 static int clk_h = -1, clk_m = -1, day = -1, month = -1, wday = -1;
 static int screen = -1;
@@ -1442,6 +1443,7 @@ void ui_set_gps(int lvl) { (void)lvl; }
 void ui_set_hint(const char *text) { (void)text; }
 
 void ui_set_nav_icon(const lv_image_dsc_t *img) { if (img) lv_image_cache_drop(img); vml_nav_img = img; render_all(); }
+void ui_set_alert_text(const char *t) { snprintf(vml_alert_txt, sizeof vml_alert_txt, "%s", t ? t : ""); }
 void ui_set_alert_icon(const lv_image_dsc_t *img) { if (img) lv_image_cache_drop(img); vml_alert_img = img; render_all(); }
 void ui_set_limit_icon(const lv_image_dsc_t *img) { if (img) lv_image_cache_drop(img); vml_limit_img = img; render_all(); }
 void ui_set_keep_on(bool on)
