@@ -18,6 +18,7 @@
 #include "esp_heap_caps.h"
 #include "esp_log.h"
 #include "esp_timer.h"
+#include "esp_system.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/stream_buffer.h"
 #include "freertos/task.h"
@@ -406,6 +407,14 @@ static void vml_task(void *arg)
             s_last_lim = -1;                       /* noi lai: VML gui lai bien hien tai, phai ve lai */
             board_ui_lock();
             ui_set_phone(true);
+            {
+                static bool told;                  /* lan noi dau sau khi HUD vua sap: bao lai ly do (luc khoi dong de bi lo) */
+                esp_reset_reason_t rr = esp_reset_reason();
+                if (!told && (rr == ESP_RST_PANIC || rr == ESP_RST_INT_WDT || rr == ESP_RST_TASK_WDT || rr == ESP_RST_WDT || rr == ESP_RST_BROWNOUT)) {
+                    told = true;
+                    ui_toast(rr == ESP_RST_BROWNOUT ? "HUD vừa khởi động lại do sụt nguồn" : "HUD vừa khởi động lại do lỗi");
+                }
+            }
             s_data = true;                         /* VML noi la len man chay ngay, khong doi goi dau tien */
             ui_set_signal(true);
             ui_set_waze(true);

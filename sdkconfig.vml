@@ -13,3 +13,7 @@ CONFIG_BT_HFP_ENABLE=n
 CONFIG_BTDM_CTRL_BR_EDR_MAX_ACL_CONN=1
 CONFIG_BTDM_CTRL_BR_EDR_MAX_SYNC_CONN=0
 CONFIG_BT_ACL_CONNECTIONS=1
+# LVGL dung heap chung (malloc) thay o nho rieng 48 KB: anh VML (mui ten A8, bien RGB565A8) phong to/thu nho can bo dem tam,
+# o 48 KB het cho -> LVGL treo -> HUD khoi dong lai giua luc dan duong (27/11).
+CONFIG_LV_USE_BUILTIN_MALLOC=n
+CONFIG_LV_USE_CLIB_MALLOC=y
