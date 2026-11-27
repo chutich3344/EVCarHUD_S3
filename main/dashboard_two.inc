@@ -277,7 +277,22 @@ static void render_two(void)
         lv_obj_set_x(w_ct, lx);
         lx += 28 + 5;
     }
-    show(w_gps, !waze);                                            /* khong co ung dung dan duong: chi co GPS */
+    bool vst = vm && waze && nv && street_nav[0];                  /* 27/11 ban VML: ten duong (tu chi dan re) o dong tren, canh chu VML */
+    show(w_gps, !waze || vst);
+    if (vst) {
+        lv_label_set_text(w_gps, street_nav);
+        lv_label_set_long_mode(w_gps, LV_LABEL_LONG_DOT);
+        lv_obj_set_style_text_font(w_gps, &ui_font_txt14, 0);
+        lv_obj_set_style_text_align(w_gps, LV_TEXT_ALIGN_LEFT, 0);
+        lv_obj_set_y(w_gps, (W_TOP_H - ui_font_txt14.line_height) / 2);
+        lv_obj_set_style_text_color(w_gps, fg, 0);
+        lv_obj_set_x(w_gps, lx);
+        lv_obj_set_width(w_gps, rx - 8 - lx > 0 ? rx - 8 - lx : 0);
+    } else {
+        lv_obj_set_style_text_font(w_gps, &ui_font_sm12, 0);
+        lv_obj_set_style_text_align(w_gps, LV_TEXT_ALIGN_CENTER, 0);
+        lv_obj_set_y(w_gps, (W_TOP_H - ui_font_sm12.line_height) / 2);
+    }
     if (!waze) {
         lv_label_set_text(w_gps, "Chỉ có GPS");
         lv_obj_set_style_text_color(w_gps, fg, 0);

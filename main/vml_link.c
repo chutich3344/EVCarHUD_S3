@@ -312,6 +312,7 @@ static void expire(void)
         s_turn = false;
         ui_set_nav(false, 0, -1, 0, s_street, 0);
         ui_set_nav_icon(NULL);
+        ui_toast("Ẩn chỉ dẫn: 10 phút không cập nhật");
         ch = true;
     }
     if (s_sign && t - s_sign_at > SIGN_MS) {
@@ -335,6 +336,7 @@ static void reset_all(void)
     board_ui_lock();
     s_turn = s_sign = s_warn = s_lim = s_data = s_cur = false;
     s_last_text[0] = 0;
+    ui_toast("Mất VML quá 10 phút: xoá dữ liệu");
     ui_set_nav_icon(NULL);
     ui_set_alert_icon(NULL);
     ui_set_limit_icon(NULL);
@@ -365,11 +367,17 @@ static void on_frame(const uint8_t *p, size_t n)
         if (p[20] != s_last_lim) {
             s_last_lim = p[20];
             int last = s_last_lim;
-            s_last_lim_shown = last;
             ESP_LOGI(TAG, "VML LIMIT CANDIDATE: %d", last);
 #if VML_SHOW_LIMIT
             board_ui_lock();
-            ui_set_speed_limit(last >= 5 && last <= 150 && last % 5 == 0 ? last : 0);   /* bien hien tai: vong so ben phai */
+            if (last >= 5 && last <= 150 && last % 5 == 0) {
+                s_last_lim_shown = last;
+                ui_set_speed_limit(last);              /* bien hien tai */
+            } else {                                   /* 27/11: VML gui 0 (mat GPS trong nha?): giu bien cu, bao de biet */
+                char t[48];
+                snprintf(t, sizeof t, "VML gửi biển %d, giữ biển cũ", last);
+                ui_toast(t);
+            }
             board_ui_unlock();
 #endif
         }
@@ -378,6 +386,16 @@ static void on_frame(const uint8_t *p, size_t n)
         on_guidance(p, n);
     } else {
         hexlog("goi la", p, n > 256 ? 256 : n);
+        static int last_cmd = -1;                      /* ban thu: bao goi la (co the la lenh xoa chi dan) */
+        int cmd = n > 13 ? p[12] << 8 | p[13] : -2;
+        if (cmd != last_cmd) {
+            last_cmd = cmd;
+            char t[48];
+            snprintf(t, sizeof t, "VML gói lạ %04X, %u byte", cmd & 0xFFFF, (unsigned)n);
+            board_ui_lock();
+            ui_toast(t);
+            board_ui_unlock();
+        }
     }
 }
 
