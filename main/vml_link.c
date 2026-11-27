@@ -312,7 +312,7 @@ static void expire(void)
     int64_t t = now_ms();
     bool ch = false;
     if (!(s_turn && t - s_turn_at > TURN_MS) && !(s_sign && t - s_sign_at > SIGN_MS) && !(s_warn && t - s_warn_at > WARN_MS)
-        )
+        && !(s_turn && s_turn_m <= 30 && t - s_turn_at > 15000) && !(s_sign && s_sign_m <= 30 && t - s_sign_at > 8000))
         return;
     board_ui_lock();
     if (s_turn && t - s_turn_at > TURN_MS) {
@@ -320,6 +320,17 @@ static void expire(void)
         ui_set_nav(false, 0, -1, 0, s_street, 0);
         ui_set_nav_icon(NULL);
         ui_toast("Ẩn chỉ dẫn: 10 phút không cập nhật");
+        ch = true;
+    }
+    if (s_turn && s_turn_m <= 30 && t - s_turn_at > 15000) {     /* v9: da qua cho re (con <=30 m, 15 s khong cap nhat) */
+        s_turn = false;
+        ui_set_nav(false, 0, -1, 0, s_street, 0);
+        ui_set_nav_icon(NULL);
+        ch = true;
+    }
+    if (s_sign && s_sign_m <= 30 && t - s_sign_at > 8000) {      /* v9: da qua bien (VML khong bao "da qua"): thanh bien hien tai */
+        promote_sign();
+        s_sign = false;
         ch = true;
     }
     if (s_sign && t - s_sign_at > SIGN_MS) {
@@ -371,9 +382,16 @@ static void log_rec(uint8_t type, uint8_t a, uint8_t b, uint8_t c)
 
 static void log_start(void)
 {
-    s_log_part = esp_partition_find_first(ESP_PARTITION_TYPE_APP, ESP_PARTITION_SUBTYPE_APP_OTA_1, NULL);
+    /* v9: khe KHONG dang chay (truoc chi dung ota_1: neu firmware nap vao ota_1 thi log tat ma khong bao) */
     const esp_partition_t *run = esp_ota_get_running_partition();
-    if (!s_log_part || s_log_part == run) { s_log_part = NULL; return; }
+    s_log_part = esp_ota_get_next_update_partition(NULL);
+    if (!s_log_part || s_log_part == run) {
+        s_log_part = NULL;
+        board_ui_lock();
+        ui_info("LOG VML: không tìm được vùng ghi log.\nChạm để tắt", 10000);
+        board_ui_unlock();
+        return;
+    }
     uint8_t r[8];
     uint32_t off = 0, boots = 0, n25 = 0, n29 = 0, nc = 0, nd = 0, ng = 0, nbad = 0;
     int mn[3] = {256, 256, 256}, mx[3] = {-1, -1, -1};
@@ -409,6 +427,9 @@ static void log_start(void)
         esp_partition_erase_range(s_log_part, 0, LOG_SIZE);
         s_log_off = 0;
         log_rec(0x10, 0, 0, 0);
+        board_ui_lock();
+        ui_info("LOG VML: lần đầu, đã chuẩn bị vùng ghi log.\nAnh chạy xe có VML, lần bật sau sẽ hiện bảng.\nChạm để tắt", 10000);
+        board_ui_unlock();
         return;
     }
     if (off && (n25 || n29 || ng)) {
@@ -432,6 +453,13 @@ static void log_start(void)
             board_ui_unlock();
             free(t);
         }
+    } else {
+        char t[200];
+        snprintf(t, sizeof t, "LOG VML: chưa có dữ liệu (%u lần bật, nối %u, ngắt %u).\nVML chưa gửi biển/chỉ dẫn nào.\nChạm để tắt",
+                 (unsigned)boots, (unsigned)nc, (unsigned)nd);
+        board_ui_lock();
+        ui_info(t, 10000);
+        board_ui_unlock();
     }
     if (off > LOG_SIZE * 3 / 4) {
         esp_partition_erase_range(s_log_part, 0, LOG_SIZE);
