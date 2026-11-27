@@ -1148,7 +1148,7 @@ static void render_standby(void)
     if (!stby) return;
     char b[48];
     char hh[4] = "--", mm[4] = "--";
-    if (clk_h >= 0) {
+    if (clk_h >= 0 && (src != UI_SRC_VML || clk_synced)) {         /* VML khong gui gio: chua chinh thi khong hien gio sai */
         snprintf(hh, sizeof hh, "%02d", clk_h % 24);
         snprintf(mm, sizeof mm, "%02d", clk_m % 60);
     }

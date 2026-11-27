@@ -31,9 +31,10 @@ static const char *TAG = "vml";
 
 #define IMG 60
 #define PKT_MAX 8192
-#define TURN_MS 6000         /* khong co goi re moi trong 6 s: an chi dan */
-#define SIGN_MS 15000
-#define WARN_MS 6000
+/* VML chi gui goi khi co thay doi (dung den do co the im ca phut) -> giu lau, chi an khi qua lau khong cap nhat */
+#define TURN_MS 120000
+#define SIGN_MS 60000
+#define WARN_MS 20000
 #define VML_SHOW_LIMIT 1     /* goi 0101 byte 20 = bien hien tai (27/11: mau 1 khop 50, anh cho chay thu) */
 
 static const char H1V_INFO[] =
@@ -180,7 +181,8 @@ static void push_live(void)
         ui_set_waze(true);
         ui_set_speed(-1);
     }
-    ui_set_keep_on(live || s_lim);
+    (void)live;
+    ui_set_keep_on(s_handle != 0);                 /* app dang noi: luon o man chay (bien hien tai / cho chi dan) */
 }
 
 /* Bien vua qua (con <= 60 m roi het) thanh bien hien tai, thay vong so ben trai */
@@ -295,13 +297,9 @@ static void expire(void)
     int64_t t = now_ms();
     bool ch = false;
     if (!(s_turn && t - s_turn_at > TURN_MS) && !(s_sign && t - s_sign_at > SIGN_MS) && !(s_warn && t - s_warn_at > WARN_MS)
-        && !(s_cur && t - s_cur_at > SIGN_MS))
+        )
         return;
     board_ui_lock();
-    if (s_cur && t - s_cur_at > SIGN_MS) {
-        s_cur = false;
-        ch = true;
-    }
     if (s_turn && t - s_turn_at > TURN_MS) {
         s_turn = false;
         ui_set_nav(false, 0, -1, 0, s_street, 0);
@@ -403,6 +401,11 @@ static void vml_task(void *arg)
             s_used = s_expect = 0;
             board_ui_lock();
             ui_set_phone(true);
+            s_data = true;                         /* VML noi la len man chay ngay, khong doi goi dau tien */
+            ui_set_signal(true);
+            ui_set_waze(true);
+            ui_set_speed(-1);
+            ui_set_keep_on(true);
             board_ui_unlock();
         }
         if (s_close_evt) {

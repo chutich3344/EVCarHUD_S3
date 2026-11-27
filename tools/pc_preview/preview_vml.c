@@ -155,37 +155,20 @@ int main(int argc, char **argv)
     ui_set_speed(-1);
     ui_set_keep_on(true);
     ui_set_speed_limit(50);
-    ui_set_nav_icon(&arr_d);
-    for (int m = 1250; m >= 0; m -= 25) {
-        ui_set_nav(true, 3, m, 0, "Mai Chí Thọ", 0);
-        if (m <= 900 && m >= 360) {
-            ui_alert_t a = {8, m - 300, -1};
-            ui_set_alert_icon(&sign_d);
-            ui_set_alerts(&a, 1);
-        } else if (m < 360 && m >= 200) {
-            ui_alert_t a = {3, m - 120, 0};
-            ui_set_alert_icon(&cam_d);
-            ui_set_alerts(&a, 1);
-        } else {
-            ui_set_alerts(NULL, 0);
-            ui_set_alert_icon(NULL);
-        }
-        if (m == 300) ui_set_speed_limit(40);
-        run(100);
-        if (m == 1200) shot("4_re_1km2");
-        else if (m == 500) shot("5_re_va_bien_tiep");
-        else if (m == 250) shot("6_camera_bien_hien_tai");
-        else shot(NULL);
-    }
-    ui_set_nav(false, 0, -1, 0, "Mai Chí Thọ", 0);
-    ui_set_nav_icon(NULL);
-    run(300);
-    shot("7_het_chi_dan"); hold(10);
-    ui_set_mode(UI_MODE_DAY);
-    ui_set_nav_icon(&arr_d);
-    ui_set_nav(true, 3, 450, 0, "Mai Chí Thọ", 0);
-    { ui_alert_t a = {8, 150, -1}; ui_set_alert_icon(&sign_d); ui_set_alerts(&a, 1); }
-    run(400);
-    shot("8_ban_ngay"); hold(10);
+    ui_alert_t nx = {8, 400, -1}, cam = {3, 250, 0};
+#define NAV(m) do { ui_set_nav_icon(&arr_d); ui_set_nav(true, 3, (m), 0, "Mai Chí Thọ", 0); } while (0)
+#define NONAV() do { ui_set_nav(false, 0, -1, 0, "", 0); ui_set_nav_icon(NULL); } while (0)
+#define NEXT() do { ui_set_alert_icon(&sign_d); ui_set_alerts(&nx, 1); } while (0)
+#define CAM() do { ui_set_alert_icon(&cam_d); ui_set_alerts(&cam, 1); } while (0)
+#define NOAL() do { ui_set_alerts(NULL, 0); ui_set_alert_icon(NULL); } while (0)
+    NONAV(); NOAL(); run(500); shot("a_chi_bien_hien_tai"); hold(15);
+    NEXT(); run(400); shot("b_khong_dd_bien_tiep"); hold(15);
+    CAM(); run(400); shot("c_khong_dd_camera"); hold(15);
+    NOAL(); NAV(450); run(400); shot("d_re_ten_duong"); hold(15);
+    NEXT(); run(400); shot("e_re_bien_tiep"); hold(15);
+    CAM(); run(400); shot("f_re_camera"); hold(15);
+    NOAL(); ui_set_speed(42); run(600); shot("g_co_toc_do_re"); hold(15);
+    NONAV(); ui_set_speed(58); run(600); shot("h_vuot_toc_do"); hold(15);
+    ui_set_speed(-1); ui_set_mode(UI_MODE_DAY); NAV(300); NEXT(); run(500); shot("i_ban_ngay"); hold(15);
     return 0;
 }
