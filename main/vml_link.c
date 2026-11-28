@@ -148,6 +148,28 @@ static void round_mask(uint16_t *px)
         }
 }
 
+/* v12: anh re VML khong phai luc nao cung xanh (28/11: 74/82 bi xep nham canh bao). Giu nguyen mau anh,
+ * nen (mau trung binh 4 goc) thanh trong suot -> RGB565A8 vao s_warn_px (60x60x3). */
+static void to_color_turn(uint16_t *dst)
+{
+    int br = 0, bg = 0, bb = 0;
+    const int cn[4] = {0, IMG - 1, IMG * (IMG - 1), IMG * IMG - 1};
+    for (int i = 0; i < 4; i++) {
+        uint16_t c = s_work[cn[i]];
+        br += (c >> 11) & 31; bg += (c >> 5) & 63; bb += c & 31;
+    }
+    br /= 4; bg /= 4; bb /= 4;
+    uint8_t *a = (uint8_t *)(dst + IMG * IMG);
+    for (int i = 0; i < IMG * IMG; i++) {
+        uint16_t c = s_work[i];
+        int dr = (((c >> 11) & 31) - br) * 8, dg = (((c >> 5) & 63) - bg) * 4, db = ((c & 31) - bb) * 8;
+        int d = (dr < 0 ? -dr : dr) + (dg < 0 ? -dg : dg) + (db < 0 ? -db : db);
+        int al = (d - 24) * 4;
+        a[i] = (uint8_t)(al < 0 ? 0 : al > 255 ? 255 : al);
+        dst[i] = c;
+    }
+}
+
 static void dsc_init(lv_image_dsc_t *d, void *px, lv_color_format_t cf, int bpp)
 {
     memset(d, 0, sizeof *d);
@@ -169,6 +191,47 @@ static bool s_cur;                           /* dang co goi bien hien tai (0101)
 static char s_street[96], s_last_text[96], s_warn_txt[96];
 
 static int64_t now_ms(void) { return esp_timer_get_time() / 1000; }
+
+/* ---------- v12: toc do uoc tinh tu khoang cach dem nguoc ----------
+ * 28/11 log: VML gui moi giay (khi xe chay) (0) goi 0101 29B byte 14..15 = BE16 met dem nguoc (0x86A0 = khong co),
+ * (1) "Toc do tiep theo" met (buoc 10 m). Toc do = met giam / thoi gian, cua so 2,5..8 s. */
+typedef struct { int64_t t[8]; int32_t m[8]; int n; } ctr_t;
+static ctr_t s_cd[2];
+static int s_spd = -1;
+static int64_t s_spd_at, s_cd0_at;
+static uint32_t s_turn_disp;                 /* met re dang hien (tu tru dan theo toc do) */
+static int64_t s_tick_at;
+
+static void cd_reset(int k) { s_cd[k].n = 0; }
+
+static void cd_feed(int k, int32_t m, int64_t t)
+{
+    ctr_t *c = &s_cd[k];
+    if (c->n) {
+        int l = (c->n - 1) % 8;
+        if (m > c->m[l] + 30 || t - c->t[l] > 4000) c->n = 0;          /* muc tieu moi / dut quang */
+        else if (t - c->t[l] < 600) return;                           /* cung giay */
+    }
+    c->t[c->n % 8] = t;
+    c->m[c->n % 8] = m;
+    c->n++;
+    if (k == 0) s_cd0_at = t;
+    if (k == 1 && t - s_cd0_at < 2500) return;                        /* uu tien nguon 1 m */
+    for (int i = c->n > 8 ? c->n - 8 : 0; i < c->n - 1; i++) {        /* mau cu nhat trong cua so */
+        int j = i % 8;
+        int64_t dt = t - c->t[j];
+        if (dt < 2500 || dt > 8000) continue;
+        int v = (int)((c->m[j] - m) * 3600 / dt);                      /* km/h */
+        if (v < 0 || v > 200) return;
+        s_spd = v;
+        s_spd_at = t;
+        ui_set_speed(v);                                              /* goi trong khoa UI */
+        return;
+    }
+}
+
+/* ---------- v12: luu anh mau (re, goi 0300) vao vung thu 3 de doc qua USB ---------- */
+static void img_save(uint8_t c1, uint8_t c2, const uint8_t *d, size_t n);
 
 static void push_alerts(void)                /* goi trong khoa UI */
 {
@@ -264,19 +327,26 @@ static void on_guidance(const uint8_t *p, size_t size)
             s_sign_m = m;
             s_sign_at = t;
         }
-    } else if (ok_img && is_arrow()) {
-        ESP_LOGI(TAG, "RE %u m | %s", (unsigned)m, label);
+        if (m < 100000) cd_feed(1, (int32_t)m, t);
+    } else if (ok_img) {                                     /* v12: moi anh kem nhan (khong phai bien tiep) = chi dan re */
+        bool blue = is_arrow();
+        ESP_LOGI(TAG, "RE %u m | %s%s", (unsigned)m, label, blue ? "" : " (anh mau)");
         log_rec(5, 1, (uint8_t)((m / 10) >> 8), (uint8_t)(m / 10));
-        to_mask();
-        if (strcmp(label, s_street)) log_txt("RE %um %s", (unsigned)m, label);
+        if (strcmp(label, s_street)) {
+            log_txt("RE %um %s%s", (unsigned)m, label, blue ? "" : " *");
+            img_save(0x40, 0xFE, jpg, len);
+        }
+        if (blue) to_mask();
+        else to_color_turn(s_warn_px);
         snprintf(s_street, sizeof s_street, "%s", label);
         s_turn = true;
-        s_turn_m = m;
+        s_turn_m = m > 100000 ? 0 : m;
+        s_turn_disp = s_turn_m;
         s_turn_at = t;
         s_turn_code = 3;
-        ui_set_nav_icon(&s_nav_dsc);
-        ui_set_nav(true, 3, (int)m, 0, s_street, 0);
-    } else if (ok_img) {
+        ui_set_nav_icon(blue ? &s_nav_dsc : &s_warn_dsc);
+        ui_set_nav(true, 3, m > 100000 ? -1 : (int)m, 0, s_street, 0);
+    } else if (0) {
         ESP_LOGI(TAG, "CANH BAO %u m | %s", (unsigned)m, label);
         log_rec(5, 3, (uint8_t)((m / 10) >> 8), (uint8_t)(m / 10));
         hexlog("anh canh bao", p, size > 512 ? 512 : size);
@@ -302,6 +372,7 @@ static void on_guidance(const uint8_t *p, size_t size)
         ui_set_nav(true, 1, (int)m, 0, s_street, 0);
     } else if (s_turn && !strcmp(label, s_street)) {          /* chi co chu, cung duong: cap nhat met */
         s_turn_m = m;
+        s_turn_disp = m;
         s_turn_at = t;
         ui_set_nav(true, s_turn_code, (int)m, 0, s_street, 0);
     } else {
@@ -317,12 +388,38 @@ static void on_guidance(const uint8_t *p, size_t size)
     board_ui_unlock();
 }
 
+static void tick_speed(void)                  /* moi vong vml_task: het han toc do, tru dan met re */
+{
+    int64_t t = now_ms(), dt = s_tick_at ? t - s_tick_at : 0;
+    s_tick_at = t;
+    if (s_spd >= 0 && t - s_spd_at > 3000) {
+        s_spd = -1;
+        board_ui_lock();
+        ui_set_speed(-1);                        /* mat toc do: ve giao dien bien to */
+        board_ui_unlock();
+    }
+    if (s_turn && s_spd > 0 && s_turn_disp > 0 && dt > 0 && dt < 2000) {
+        static uint32_t acc, shown;
+        acc += (uint32_t)(s_spd * dt / 3.6f);       /* mm */
+        uint32_t d = acc / 1000;
+        if (!d) return;
+        acc -= d * 1000;
+        s_turn_disp = s_turn_disp > d ? s_turn_disp - d : 0;
+        if (shown >= s_turn_disp + 10 || shown + 10 <= s_turn_disp || !s_turn_disp) {
+            shown = s_turn_disp;
+            board_ui_lock();
+            ui_set_nav(true, s_turn_code, (int)s_turn_disp, 0, s_street, 0);
+            board_ui_unlock();
+        }
+    }
+}
+
 static void expire(void)
 {
     int64_t t = now_ms();
     bool ch = false;
     if (!(s_turn && t - s_turn_at > TURN_MS) && !(s_sign && t - s_sign_at > SIGN_MS) && !(s_warn && t - s_warn_at > WARN_MS)
-        && !(s_turn && s_turn_m <= 30 && t - s_turn_at > 15000) && !(s_sign && s_sign_m <= 30 && t - s_sign_at > 8000))
+        && !(s_turn && s_turn_disp <= 30 && t - s_turn_at > 15000) && !(s_sign && s_sign_m <= 30 && t - s_sign_at > 8000))
         return;
     board_ui_lock();
     if (s_turn && t - s_turn_at > TURN_MS) {
@@ -332,7 +429,7 @@ static void expire(void)
         ui_toast("Ẩn chỉ dẫn: 10 phút không cập nhật");
         ch = true;
     }
-    if (s_turn && s_turn_m <= 30 && t - s_turn_at > 15000) {     /* v9: da qua cho re (con <=30 m, 15 s khong cap nhat) */
+    if (s_turn && s_turn_disp <= 30 && t - s_turn_at > 15000) {     /* v9: da qua cho re (con <=30 m, 15 s khong cap nhat) */
         s_turn = false;
         ui_set_nav(false, 0, -1, 0, s_street, 0);
         ui_set_nav_icon(NULL);
@@ -451,13 +548,43 @@ static void txt_scan(char *tail, size_t tn)
     }
 }
 
+#define IMG_SIZE 0x10000
+static uint32_t s_img_off;
+static int s_img_n;
+
+static void img_save(uint8_t c1, uint8_t c2, const uint8_t *d, size_t n)
+{
+    if (!s_log_part || !d || n > 4000 || s_img_n >= 12) return;      /* toi da 12 anh moi lan bat */
+    if (s_img_off + 5 + n > IMG_SIZE) return;
+    uint8_t h[5] = {'J', c1, c2, (uint8_t)(n >> 8), (uint8_t)n};
+    uint32_t o = LOG_SIZE + TXT_SIZE + s_img_off;
+    if (esp_partition_write(s_log_part, o, h, 5) == ESP_OK && esp_partition_write(s_log_part, o + 5, d, n) == ESP_OK) {
+        s_img_off += 5 + n;
+        ++s_img_n;
+    }
+}
+
+static void img_scan(void)
+{
+    uint32_t off = 0;
+    uint8_t h[5];
+    while (off + 5 <= IMG_SIZE) {
+        if (esp_partition_read(s_log_part, LOG_SIZE + TXT_SIZE + off, h, 5) != ESP_OK) break;
+        if (h[0] == 0xFF) break;
+        if (h[0] != 'J') { esp_partition_erase_range(s_log_part, LOG_SIZE + TXT_SIZE, IMG_SIZE); off = 0; break; }
+        off += 5 + (h[3] << 8 | h[4]);
+    }
+    s_img_off = off > IMG_SIZE ? IMG_SIZE : off;
+}
+
 void ui_info_long_press(void)                 /* goi trong luong LVGL (da khoa UI) */
 {
     if (!s_log_part) return;
-    esp_partition_erase_range(s_log_part, 0, LOG_SIZE + TXT_SIZE);
+    esp_partition_erase_range(s_log_part, 0, LOG_SIZE + TXT_SIZE + IMG_SIZE);
     s_log_off = 0;
     s_txt_off = 0;
     s_txt_lines = 0;
+    s_img_off = 0;
     log_rec(0x10, 0, 0, 0);
     ui_toast("Đã xoá log VML");
 }
@@ -505,13 +632,15 @@ static void log_start(void)
     }
     s_log_off = off;
     char tail[330];
+    img_scan();
     if (!nbad) txt_scan(tail, sizeof tail);
     else tail[0] = 0;
     if (nbad) {                                        /* khe ota_1 con firmware cu / rac: xoa, bat dau log moi */
         ESP_LOGW(TAG, "log: vung ota_1 khong phai log (%u ban ghi la) -> xoa", (unsigned)nbad);
-        esp_partition_erase_range(s_log_part, 0, LOG_SIZE + TXT_SIZE);
+        esp_partition_erase_range(s_log_part, 0, LOG_SIZE + TXT_SIZE + IMG_SIZE);
         s_log_off = 0;
         s_txt_off = 0;
+        s_img_off = 0;
         log_rec(0x10, 0, 0, 0);
         board_ui_lock();
         ui_info("LOG VML: lần đầu, đã chuẩn bị vùng ghi log.\nAnh chạy xe có VML, lần bật sau sẽ hiện bảng.\nChạm để tắt", 10000);
@@ -572,12 +701,12 @@ static void on_frame(const uint8_t *p, size_t n)
                 uint8_t v[3] = {p[14], p[15], p[20]};
                 if (!h29 || memcmp(l29, v, 3)) {
                     memcpy(l29, v, 3); h29 = true; log_rec(2, v[0], v[1], v[2]);
-                    char d[24];                        /* v11 thu: byte 14/15 doi lien tuc khi chay (nghi toc do) -> hien de so dong ho xe */
-                    snprintf(d, sizeof d, "14:%u 15:%u", v[0], v[1]);
-                    board_ui_lock();
-                    ui_set_vml_debug(d);
-                    board_ui_unlock();
                 }
+                int32_t cm = p[14] << 8 | p[15];       /* v12: met dem nguoc (0x86A0 = khong co) -> toc do */
+                board_ui_lock();
+                if (cm == 0x86A0) cd_reset(0);
+                else cd_feed(0, cm, now_ms());
+                board_ui_unlock();
             }
         }
         {                                              /* 27/11: con co loai 25 byte (trong nha) -> ban thu: hien hex de xac minh */
@@ -621,6 +750,9 @@ static void on_frame(const uint8_t *p, size_t n)
     } else if (n >= 14 && p[12] == 0x40 && p[13] == 0xFE) {
         ++s_n40fe;
         on_guidance(p, n);
+    } else if (n > 13 && p[12] == 0x03 && p[13] == 0x00) {
+        static int k0300;                              /* 28/11: anh JPEG ~1,2 KB moi giay (chua ro: lan / nga re / camera?) */
+        if (k0300++ % 300 == 0) { img_save(0x03, 0x00, p, n); log_txt("ANH 0300 %u byte (lan %d)", (unsigned)n, k0300); }
     } else if (n > 13 && p[12] == 0x02 && p[13] == 0xFF) {
         ++s_n02ff;                                     /* 28/11: heartbeat ~4 s (payload FF + so thu tu): chi dem, khong ghi log */
     } else {
@@ -731,6 +863,7 @@ static void vml_task(void *arg)
             board_ui_unlock();
         }
         for (size_t i = 0; i < n; i++) feed(buf[i]);
+        tick_speed();
         expire();
     }
 }
@@ -808,7 +941,7 @@ void vml_link_start(void)
     s_work = heap_caps_malloc(IMG * IMG * 2, MALLOC_CAP_8BIT);
     s_nav_px = heap_caps_malloc(IMG * IMG, MALLOC_CAP_8BIT);
     s_sign_px = heap_caps_calloc(1, IMG * IMG * 3, MALLOC_CAP_8BIT);
-    s_warn_px = heap_caps_calloc(1, IMG * IMG * 2, MALLOC_CAP_8BIT);
+    s_warn_px = heap_caps_calloc(1, IMG * IMG * 3, MALLOC_CAP_8BIT);   /* v12: anh re mau (RGB565A8) */
     s_lim_px = heap_caps_calloc(1, IMG * IMG * 3, MALLOC_CAP_8BIT);
     s_rx = xStreamBufferCreate(16 * 1024, 1);
     if (!s_pkt || !s_work || !s_nav_px || !s_sign_px || !s_warn_px || !s_rx) {
@@ -819,7 +952,7 @@ void vml_link_start(void)
     dsc_init(&s_nav_dsc, s_nav_px, LV_COLOR_FORMAT_A8, 1);
     round_mask(s_sign_px);
     dsc_init(&s_sign_dsc, s_sign_px, LV_COLOR_FORMAT_RGB565A8, 3);
-    dsc_init(&s_warn_dsc, s_warn_px, LV_COLOR_FORMAT_RGB565, 2);
+    dsc_init(&s_warn_dsc, s_warn_px, LV_COLOR_FORMAT_RGB565A8, 3);
     if (s_lim_px) {
         round_mask(s_lim_px);
         dsc_init(&s_lim_dsc, s_lim_px, LV_COLOR_FORMAT_RGB565A8, 3);

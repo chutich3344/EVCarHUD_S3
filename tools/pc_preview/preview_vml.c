@@ -80,6 +80,7 @@ static void hold(int n) { for (int i = 0; i < n; i++) { run(100); shot(NULL); } 
 static uint8_t arr_px[60*60];
 static uint16_t sign_px[60*60*3/2], cam_px[60*60];
 static lv_image_dsc_t arr_d, sign_d, cam_d;
+static uint16_t carr_px[60*60*3/2]; static lv_image_dsc_t carr_d;   /* v12: mui ten mau (khong xanh) */
 static void mkdsc(lv_image_dsc_t *d, void *px, lv_color_format_t cf, int bpp)
 {
     memset(d, 0, sizeof *d);
@@ -112,6 +113,8 @@ static void mk_images(void)
         if (edge) sign_px[y*60+x] = 0x0000;
     }
     mkdsc(&arr_d, arr_px, LV_COLOR_FORMAT_A8, 1);
+    for (int i = 0; i < 3600; i++) { carr_px[i] = 0xFFFF; ((uint8_t *)(carr_px + 3600))[i] = arr_px[i]; }
+    mkdsc(&carr_d, carr_px, LV_COLOR_FORMAT_RGB565A8, 3);
     uint8_t *al = (uint8_t *)(sign_px + 3600);
     for (int y = 0; y < 60; y++) for (int x = 0; x < 60; x++) {
         float dx = x + 0.5f - 30, dy = y + 0.5f - 30, dd = 30 - sqrtf(dx*dx + dy*dy);
@@ -180,6 +183,38 @@ int main(int argc, char **argv)
     ui_info("LOG VML (1834 bản ghi, 3 lần bật). Chạm để tắt\nGói ngắn: 1520 lần đổi, 61 giá trị cuối khác nhau\n b1 86..86  b2 A0..A4  b3 0..72\n Cuối: 42 40 37 33 28 22 15 9 4 0 0 0\nGói biển 29B: 14 lần, biển: 50 60 80 60 50 40\nChỉ dẫn: 230  Nối: 9  Ngắt: 8", 30000); run(300); shot("j_tom_tat_log");
     ui_info("", 1); run(50); ui_set_mode(UI_MODE_NIGHT); ui_set_vml_debug("14:42 15:7"); NOAL(); NEXT(); run(400); shot("q_v11_do_byte"); NAV(300); run(400); shot("r_v11_do_byte_dd"); ui_set_vml_debug(""); hold(15);
     ui_info("LOG VML (412 bản ghi, 2 lần bật). Chạm để tắt\nGói biển 29B: 6 lần, biển: 50 60 80 60\nChỉ dẫn: 58  Nối: 3  Ngắt: 2\nChữ: 9 dòng, cuối:\n 812 CB 1200m Trạm BOT Long Phước 35.000đ\n 934 CB 400m Camera phạt nguội\n 1011 RE 300m Mai Chí Thọ\n 1102 LA 4102 30 A55A37C3...", 30000); run(300); shot("p_v10_log_co_chu");
+    /* ===== v12: mo phong chay xe (video) ===== */
+    ui_info("", 1); run(50);
+    printf("V12_START %d\n", frame_no);
+    ui_set_mode(UI_MODE_NIGHT); ui_set_vml_debug(""); NONAV(); NOAL(); ui_set_speed(-1); ui_set_speed_limit(50);
+    ui_set_alert_text(""); run(300); shot("s_v12_dung_yen"); hold(10);
+    {   /* xe chay: bien tiep 60 dem nguoc moi giay, toc do uoc tinh hien ra sau ~3 s */
+        int sp[] = {-1, -1, -1, 28, 33, 38, 42, 46, 49, 52, 54, 55, 53, 50, 47, 45, 44, 44};
+        int m = 400;
+        ui_set_alert_icon(&sign_d);
+        for (int i = 0; i < 18; i++) {
+            ui_alert_t a = {8, m, -1}; ui_set_alerts(&a, 1);
+            ui_set_speed(sp[i]); run(100);
+            if (i == 6) shot("t_v12_toc_do_uoc_tinh");
+            if (i == 10) shot("u_v12_vuot_bien");
+            hold(9);
+            m -= sp[i] > 0 ? sp[i] * 10 / 36 : 5; if (m < 0) m = 0;
+        }
+    }
+    ui_set_speed_limit(60); NOAL(); run(200); hold(8);
+    {   /* chi dan re (anh mau) + ten duong sap re o dong tren, met tu tru dan */
+        ui_set_nav_icon(&carr_d);
+        int m = 320;
+        for (int i = 0; i < 22; i++) {
+            ui_set_nav(true, 3, m, 0, "Võ Nguyên Giáp", 0); ui_set_speed(40 - (i > 14 ? (i - 14) * 4 : 0)); run(100);
+            if (i == 4) shot("v_v12_re_mau_ten_duong");
+            hold(9);
+            m -= 11; if (m < 10) m = 10;
+        }
+    }
+    NONAV(); run(200); hold(6);
+    ui_set_speed(-1); run(300); shot("w_v12_mat_toc_do"); hold(12);
+    printf("V12_END %d\n", frame_no);
     { lv_mem_monitor_t mm; lv_mem_monitor(&mm); printf("LVGL mem: tong %u, dung max %u, phan manh %u%%\n", (unsigned)mm.total_size, (unsigned)mm.max_used, mm.frag_pct); }
     return 0;
 }

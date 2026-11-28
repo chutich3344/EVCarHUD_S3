@@ -369,6 +369,7 @@ static void render_two(void)
             lv_image_set_src(w_arr, arr ? arr : &arrow_straight); lv_obj_invalidate(w_arr);
             lv_image_set_scale(w_arr, (uint32_t)(A * 256 / (arr ? (int)arr->header.w : 64)));
             lv_obj_set_style_image_recolor(w_arr, fg, 0);
+            lv_obj_set_style_image_recolor_opa(w_arr, arr && arr == vml_nav_img && arr->header.cf != LV_COLOR_FORMAT_A8 ? LV_OPA_TRANSP : LV_OPA_COVER, 0);   /* v12: anh re mau giu nguyen mau */
             lv_obj_set_style_image_opa(w_arr, LV_OPA_COVER, 0);
             char num[12], d[20];
             const char *u;
@@ -394,6 +395,7 @@ static void render_two(void)
         lv_image_set_src(w_arr, arr ? arr : &arrow_straight); lv_obj_invalidate(w_arr);
         lv_image_set_scale(w_arr, (uint32_t)(40 * 256 / (arr ? (int)arr->header.w : 64)));
         lv_obj_set_style_image_recolor(w_arr, fg, 0);
+        lv_obj_set_style_image_recolor_opa(w_arr, arr && arr == vml_nav_img && arr->header.cf != LV_COLOR_FORMAT_A8 ? LV_OPA_TRANSP : LV_OPA_COVER, 0);
         lv_obj_set_style_image_opa(w_arr, arr ? LV_OPA_COVER : LV_OPA_60, 0);
         char num[12], d[20];
         const char *u;

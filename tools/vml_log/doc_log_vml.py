@@ -15,7 +15,7 @@ Ban ghi 8 byte: [loai][giay 24 bit][d0 d1 d2][0]
 import datetime, os, subprocess, sys, tempfile
 
 SLOTS = {"ota_1": 0x200000, "ota_0": 0x10000}
-SIZE = 0x20000            # 64 KB ban ghi + 64 KB chu (tu v10)
+SIZE = 0x30000            # 64 KB ban ghi + 64 KB chu (v10) + 64 KB anh mau (v12)
 NAMES = {1: "goi_ngan", 2: "bien_29B", 3: "NOI", 4: "NGAT", 5: "chi_dan", 0x10: "BAT_HUD"}
 GUIDE = {1: "re", 2: "bien_tiep", 3: "canh_bao"}
 
@@ -69,6 +69,17 @@ def main():
             rows.append("")
             rows.append("---- CHU (giay noi-dung): CB canh bao/camera/tram, RE re, CHU chu, LA goi la ----")
             rows += txt.decode("utf-8", "replace").splitlines()
+        img = raw[0x20000:0x30000]
+        o, k = 0, 0
+        while o + 5 <= len(img) and img[o] == ord("J"):
+            n = img[o + 3] << 8 | img[o + 4]
+            d = img[o + 5:o + 5 + n]
+            a = d.find(b"\xff\xd8"); b = d.rfind(b"\xff\xd9")
+            nm = f"anh-vml-{name}-{k:02d}-{img[o+1]:02X}{img[o+2]:02X}.jpg"
+            if a >= 0 and b > a:
+                open(nm, "wb").write(d[a:b + 2])
+                rows.append(f"ANH: {nm} ({n} byte)")
+            o += 5 + n; k += 1
         print(f"   {len(rows)} ban ghi hop le")
         if rows and not bad and (best is None or len(rows) > len(best[1])):
             best = (name, rows, f)
