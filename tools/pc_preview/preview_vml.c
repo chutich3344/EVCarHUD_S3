@@ -178,6 +178,7 @@ int main(int argc, char **argv)
     ui_set_mode(UI_MODE_DAY); run(400); shot("n_v10_tram_ban_ngay"); hold(15);
     ui_set_mode(UI_MODE_NIGHT); ui_set_alert_text(""); NOAL(); run(400); shot("o_v10_cho_bien_bao"); hold(15);
     ui_info("LOG VML (1834 bản ghi, 3 lần bật). Chạm để tắt\nGói ngắn: 1520 lần đổi, 61 giá trị cuối khác nhau\n b1 86..86  b2 A0..A4  b3 0..72\n Cuối: 42 40 37 33 28 22 15 9 4 0 0 0\nGói biển 29B: 14 lần, biển: 50 60 80 60 50 40\nChỉ dẫn: 230  Nối: 9  Ngắt: 8", 30000); run(300); shot("j_tom_tat_log");
+    ui_info("", 1); run(50); ui_set_mode(UI_MODE_NIGHT); ui_set_vml_debug("14:42 15:7"); NOAL(); NEXT(); run(400); shot("q_v11_do_byte"); NAV(300); run(400); shot("r_v11_do_byte_dd"); ui_set_vml_debug(""); hold(15);
     ui_info("LOG VML (412 bản ghi, 2 lần bật). Chạm để tắt\nGói biển 29B: 6 lần, biển: 50 60 80 60\nChỉ dẫn: 58  Nối: 3  Ngắt: 2\nChữ: 9 dòng, cuối:\n 812 CB 1200m Trạm BOT Long Phước 35.000đ\n 934 CB 400m Camera phạt nguội\n 1011 RE 300m Mai Chí Thọ\n 1102 LA 4102 30 A55A37C3...", 30000); run(300); shot("p_v10_log_co_chu");
     { lv_mem_monitor_t mm; lv_mem_monitor(&mm); printf("LVGL mem: tong %u, dung max %u, phan manh %u%%\n", (unsigned)mm.total_size, (unsigned)mm.max_used, mm.frag_pct); }
     return 0;

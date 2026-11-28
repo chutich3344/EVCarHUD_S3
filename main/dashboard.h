@@ -62,6 +62,8 @@ void ui_set_hint(const char *text);
 /* --- VietMap Live (ban 2.8 VML): app gui anh thay vi ma huong re / so bien ---
  * Anh do vml_link.c giai tu JPEG 60x60. NULL = dung hinh mac dinh. Doi noi dung anh: truyen con tro khac (2 bo dem luan phien). */
 void ui_set_nav_icon(const lv_image_dsc_t *img);       /* mui ten re (A8, to theo mau chu) thay arrow_for_turn */
+void ui_set_vml_debug(const char *t);               /* VML thu: chuoi do o dong tren (rong = an) */
+void ui_info_long_press(void);                      /* goi khi giu lau tren bang ui_info (weak, ban VML: xoa log) */
 void ui_set_alert_text(const char *t);               /* VML: chu kem canh bao, hien o the canh bao khi khong dan duong */
 void ui_set_alert_icon(const lv_image_dsc_t *img);     /* anh o canh bao duoi (bien tiep theo / camera...) */
 void ui_set_limit_icon(const lv_image_dsc_t *img);     /* anh bien gioi han hien tai thay vong so (khi khong biet so) */

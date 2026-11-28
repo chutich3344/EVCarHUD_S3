@@ -278,9 +278,13 @@ static void render_two(void)
         lx += 28 + 5;
     }
     bool vst = vm && waze && nv && street_nav[0];                  /* 27/11 ban VML: ten duong (tu chi dan re) o dong tren, canh chu VML */
-    show(w_gps, !waze || vst);
-    if (vst) {
-        lv_label_set_text(w_gps, street_nav);
+    bool vdb = vm && waze && vml_dbg[0];                           /* v11 thu: byte 14/15 goi bien (do toc do) o dong tren */
+    show(w_gps, !waze || vst || vdb);
+    if (vst || vdb) {
+        char tb[140];
+        if (vst && vdb) snprintf(tb, sizeof tb, "%s  %s", vml_dbg, street_nav);
+        else snprintf(tb, sizeof tb, "%s", vst ? street_nav : vml_dbg);
+        lv_label_set_text(w_gps, tb);
         lv_label_set_long_mode(w_gps, LV_LABEL_LONG_DOT);
         lv_obj_set_style_text_font(w_gps, &ui_font_txt14, 0);
         lv_obj_set_style_text_align(w_gps, LV_TEXT_ALIGN_LEFT, 0);

@@ -95,7 +95,8 @@ static lv_timer_t *blink_tmr, *toast_tmr;
 static int speed = -2, limit = -1, level = -1;
 static bool nav_on, has_route;
 static const lv_image_dsc_t *vml_nav_img, *vml_alert_img, *vml_limit_img;
-static char vml_alert_txt[96];                    /* ban VML: chu kem canh bao (camera, tram thu phi + gia ve...) */   /* ban VML: anh tu app (NULL = mac dinh) */
+static char vml_alert_txt[96];
+static char vml_dbg[24];                          /* v11 thu: chuoi do (byte 14/15 goi bien) */                    /* ban VML: chu kem canh bao (camera, tram thu phi + gia ve...) */   /* ban VML: anh tu app (NULL = mac dinh) */
 static bool keep_on;
 static int clk_h = -1, clk_m = -1, day = -1, month = -1, wday = -1;
 static int screen = -1;
@@ -623,6 +624,8 @@ void ui_toast(const char *text)
 /* Bang chu toan man tren lop tren cung (ban VML thu: tom tat log lan chay truoc). Cham hoac het gio thi tat. */
 static lv_obj_t *info_box;
 static void info_close(lv_timer_t *t) { (void)t; if (info_box) { lv_obj_delete(info_box); info_box = NULL; } }   /* timer 1 lan: LVGL tu xoa */
+void __attribute__((weak)) ui_info_long_press(void) {}
+static void info_long(lv_event_t *e) { (void)e; ui_info_long_press(); }
 static void info_click(lv_event_t *e) { (void)e; if (info_box) { lv_obj_delete_async(info_box); info_box = NULL; } }
 void ui_info(const char *text, int ms)
 {
@@ -634,7 +637,8 @@ void ui_info(const char *text, int ms)
     lv_obj_set_style_bg_opa(info_box, LV_OPA_COVER, 0);
     lv_obj_set_style_pad_all(info_box, 6, 0);
     lv_obj_add_flag(info_box, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_add_event_cb(info_box, info_click, LV_EVENT_CLICKED, NULL);
+    lv_obj_add_event_cb(info_box, info_click, LV_EVENT_SHORT_CLICKED, NULL);
+    lv_obj_add_event_cb(info_box, info_long, LV_EVENT_LONG_PRESSED, NULL);
     lv_obj_t *l = lv_label_create(info_box);
     lv_obj_set_width(l, UI_W - 12);
     lv_label_set_long_mode(l, LV_LABEL_LONG_WRAP);
@@ -1443,6 +1447,7 @@ void ui_set_gps(int lvl) { (void)lvl; }
 void ui_set_hint(const char *text) { (void)text; }
 
 void ui_set_nav_icon(const lv_image_dsc_t *img) { if (img) lv_image_cache_drop(img); vml_nav_img = img; render_all(); }
+void ui_set_vml_debug(const char *t) { if (strcmp(vml_dbg, t ? t : "")) { snprintf(vml_dbg, sizeof vml_dbg, "%s", t ? t : ""); render_all(); } }
 void ui_set_alert_text(const char *t) { snprintf(vml_alert_txt, sizeof vml_alert_txt, "%s", t ? t : ""); }
 void ui_set_alert_icon(const lv_image_dsc_t *img) { if (img) lv_image_cache_drop(img); vml_alert_img = img; render_all(); }
 void ui_set_limit_icon(const lv_image_dsc_t *img) { if (img) lv_image_cache_drop(img); vml_limit_img = img; render_all(); }

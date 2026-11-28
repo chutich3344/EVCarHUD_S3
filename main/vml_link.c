@@ -61,7 +61,7 @@ static int64_t s_lost_at;                    /* VML vua ngat: giu man 30 s cho n
 static int s_last_lim = -1, s_last_lim_shown = -1;
 #define TURN_LOST_MS 60000                  /* v10: thoat VML (ngat > 1 phut) -> xoa mui ten re, giu bien */
 #define GRACE_MS 600000                     /* 27/11: ngat lau 10 phut moi xoa (VML ngat/noi lai lien tuc, noi lai khong gui lai) */
-static int s_conn_n, s_n0101, s_n40fe;
+static int s_conn_n, s_n0101, s_n40fe, s_n02ff;
 static volatile int s_drop;
 static int64_t s_last_rx;
 
@@ -451,6 +451,17 @@ static void txt_scan(char *tail, size_t tn)
     }
 }
 
+void ui_info_long_press(void)                 /* goi trong luong LVGL (da khoa UI) */
+{
+    if (!s_log_part) return;
+    esp_partition_erase_range(s_log_part, 0, LOG_SIZE + TXT_SIZE);
+    s_log_off = 0;
+    s_txt_off = 0;
+    s_txt_lines = 0;
+    log_rec(0x10, 0, 0, 0);
+    ui_toast("Đã xoá log VML");
+}
+
 static void log_start(void)
 {
     /* v9: khe KHONG dang chay (truoc chi dung ota_1: neu firmware nap vao ota_1 thi log tat ma khong bao) */
@@ -521,7 +532,7 @@ static void log_start(void)
             o += snprintf(t + o, 1100 - o, "Gói biển 29B: %u lần, biển:", (unsigned)n29);
             for (int i = 0; i < kl && o < 1040; i++) o += snprintf(t + o, 1100 - o, " %d", lim[i]);
             o += snprintf(t + o, 1100 - o, "\nChỉ dẫn: %u  Nối: %u  Ngắt: %u%s", (unsigned)ng, (unsigned)nc, (unsigned)nd,
-                     off > LOG_SIZE * 3 / 4 || s_txt_off > TXT_SIZE * 3 / 4 ? "\nLog gần đầy: đã xoá để ghi mới" : "");
+                     off + 8 > LOG_SIZE || s_txt_off + 200 > TXT_SIZE ? "\nLOG ĐẦY: giữ lâu để xoá" : "\nGiữ lâu để xoá log");
             snprintf(t + o, 1500 - o, "%s", tail);
             ESP_LOGI(TAG, "%s", t);
             board_ui_lock();
@@ -537,11 +548,7 @@ static void log_start(void)
         ui_info(t, 10000);
         board_ui_unlock();
     }
-    if (off > LOG_SIZE * 3 / 4 || s_txt_off > TXT_SIZE * 3 / 4) {
-        esp_partition_erase_range(s_log_part, 0, LOG_SIZE + TXT_SIZE);
-        s_log_off = 0;
-        s_txt_off = 0;
-    }
+    /* v11: KHONG tu xoa (28/11 tu xoa lam mat log chay xe). Day thi dung ghi; giu lau tren bang log de xoa. */
     log_rec(0x10, (uint8_t)(boots >> 8), (uint8_t)boots, 0);
 }
 
@@ -560,16 +567,23 @@ static void on_frame(const uint8_t *p, size_t n)
         {
             static uint8_t l25[3], l29[3];
             static bool h25, h29;
-            if (n == 25 && (!h25 || memcmp(l25, p + 14, 3))) { memcpy(l25, p + 14, 3); h25 = true; log_rec(1, p[14], p[15], p[16]); }
+            (void)l25; (void)h25;                      /* 28/11: goi ngan 86 A0 xx khong phai toc do (chay xe van 0): bo */
             if (n == 29) {
                 uint8_t v[3] = {p[14], p[15], p[20]};
-                if (!h29 || memcmp(l29, v, 3)) { memcpy(l29, v, 3); h29 = true; log_rec(2, v[0], v[1], v[2]); }
+                if (!h29 || memcmp(l29, v, 3)) {
+                    memcpy(l29, v, 3); h29 = true; log_rec(2, v[0], v[1], v[2]);
+                    char d[24];                        /* v11 thu: byte 14/15 doi lien tuc khi chay (nghi toc do) -> hien de so dong ho xe */
+                    snprintf(d, sizeof d, "14:%u 15:%u", v[0], v[1]);
+                    board_ui_lock();
+                    ui_set_vml_debug(d);
+                    board_ui_unlock();
+                }
             }
         }
         {                                              /* 27/11: con co loai 25 byte (trong nha) -> ban thu: hien hex de xac minh */
             static uint8_t last[64];
             static size_t last_n;
-            if (n != 29 && n != 25 && (n != last_n || memcmp(last, p, n))) {
+            if (0 && n != 29 && n != 25 && (n != last_n || memcmp(last, p, n))) {
                 memcpy(last, p, n);
                 last_n = n;
                 char t[96];
@@ -607,6 +621,8 @@ static void on_frame(const uint8_t *p, size_t n)
     } else if (n >= 14 && p[12] == 0x40 && p[13] == 0xFE) {
         ++s_n40fe;
         on_guidance(p, n);
+    } else if (n > 13 && p[12] == 0x02 && p[13] == 0xFF) {
+        ++s_n02ff;                                     /* 28/11: heartbeat ~4 s (payload FF + so thu tu): chi dem, khong ghi log */
     } else {
         hexlog("goi la", p, n > 256 ? 256 : n);
         static int last_cmd = -1;                      /* ban thu: bao goi la (co the la lenh xoa chi dan) */
