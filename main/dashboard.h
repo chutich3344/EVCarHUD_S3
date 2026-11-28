@@ -36,7 +36,7 @@ enum { UI_LEVEL_OK = 0, UI_LEVEL_NEAR = 1, UI_LEVEL_OVER = 2 };   /* toc do so v
 
 void dashboard_create(lv_obj_t *screen);
 lv_obj_t *ui_screen(void);                               /* man bang dieu khien (dashboard_create) */
-enum { UI_SRC_WAZE = 0, UI_SRC_GOFA = 1 };              /* nguon du lieu dan duong (chon trong cai dat > Ket noi) */
+enum { UI_SRC_WAZE = 0, UI_SRC_GOFA = 1, UI_SRC_VML = 2 };   /* VML = VietMap Live (Bluetooth SPP, gia HUD H1V) */              /* nguon du lieu dan duong (chon trong cai dat > Ket noi) */
 lv_obj_t *ui_splash_create(const char *version, int source);   /* man chao: logo + "Ket noi voi" Waze/GOFA (chua nap) */
 lv_obj_t *ui_partner_tile(lv_obj_t *parent, int source, int size);   /* o logo Waze / GOFA */
 
@@ -58,7 +58,16 @@ void ui_set_signal(bool ok);                           /* false: chua co du lieu
 void ui_set_phone(bool connected);                     /* dien thoai noi Bluetooth (man cho: "Da ket noi dien thoai") */
 void ui_set_waze(bool on);                             /* false: chi co toc do GPS, chua co du lieu Waze */
 void ui_set_gps(int level);
-void ui_set_hint(const char *text);                    /* bo qua: man cho tu hien "Cho ket noi Waze..." */
+void ui_set_hint(const char *text);
+/* --- VietMap Live (ban 2.8 VML): app gui anh thay vi ma huong re / so bien ---
+ * Anh do vml_link.c giai tu JPEG 60x60. NULL = dung hinh mac dinh. Doi noi dung anh: truyen con tro khac (2 bo dem luan phien). */
+void ui_set_nav_icon(const lv_image_dsc_t *img);       /* mui ten re (A8, to theo mau chu) thay arrow_for_turn */
+void ui_set_vml_debug(const char *t);               /* VML thu: chuoi do o dong tren (rong = an) */
+void ui_info_long_press(void);                      /* goi khi giu lau tren bang ui_info (weak, ban VML: xoa log) */
+void ui_set_alert_text(const char *t);               /* VML: chu kem canh bao, hien o the canh bao khi khong dan duong */
+void ui_set_alert_icon(const lv_image_dsc_t *img);     /* anh o canh bao duoi (bien tiep theo / camera...) */
+void ui_set_limit_icon(const lv_image_dsc_t *img);     /* anh bien gioi han hien tai thay vong so (khi khong biet so) */
+void ui_set_keep_on(bool on);                          /* co du lieu dan duong (khong co toc do): giu man chay, khong ve man cho */                    /* bo qua: man cho tu hien "Cho ket noi Waze..." */
 
 /* --- Ngay / Dem ---
  * Tu dong: theo cam bien anh sang neu board co (ui_set_ambient), khong thi theo gio (6:00-18:00 la ngay).
@@ -80,6 +89,7 @@ void ui_rotate(void);                                  /* xoay 180 do (bam BOOT 
 void ui_set_rotate_hook(void (*cb)(void));             /* bam BOOT 2 lan: board xoay 180 do */
 void ui_set_level_hook(void (*cb)(int level));         /* UI_LEVEL_*: board bat den LED / loa */
 void ui_toast(const char *text);
+void ui_info(const char *text, int ms);                  /* bang chu toan man (ban thu: tom tat log), cham de tat */
 /* --- loa ---
  * Tieng tit theo trang thai: 1 tieng khi co canh bao moi (camera, canh sat...) va khi con 100 m toi cho re;
  * 2 tieng khi vuot toc do (nhac lai moi 8 giay neu van vuot). Giu tay 5 giay tren man hinh: man cai dat am luong. */

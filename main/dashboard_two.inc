@@ -24,6 +24,8 @@ static lv_obj_t *w_ct, *w_ex, *w_ex_l, *w_rs, *w_rs_l;
 static lv_obj_t *w_sp, *w_kmh, *w_clk, *w_num;
 static lv_obj_t *w_sc, *w_arr, *w_tdist, *w_div, *w_ring, *w_ring_l;
 static lv_obj_t *w_lo, *w_lo_lab, *w_lo_num, *w_lo_unit, *w_lo_img;
+static lv_obj_t *w_limg;                                 /* ban VML: anh bien gioi han hien tai */
+static lv_obj_t *w_bring, *w_bring_l, *w_blimg, *w_vtile, *w_vtxt, *w_hien;   /* ban VML khong co toc do: bien to o o trai */
 /* trang thai xADAS do xadas.c bao (ui_xadas_state) */
 static int xs_kind = -1, xs_col;
 static bool xs_dim;
@@ -119,6 +121,20 @@ static void build_two(void)
     w_clk = mk_label_w(w_sp, &ui_font_txt14, W_SPW - 2 - 9 - 60, 6, 60, LV_TEXT_ALIGN_RIGHT);
     w_num = mk_label_w(w_sp, &ui_font_speed88, 0, 0, W_SPW - 2, LV_TEXT_ALIGN_CENTER);
     lv_label_set_long_mode(w_num, LV_LABEL_LONG_CLIP);
+    w_bring = mk_fill(w_sp, 0, 0, 120, 120, LV_RADIUS_CIRCLE);
+    lv_obj_set_style_bg_color(w_bring, lv_color_white(), 0);
+    lv_obj_set_style_border_color(w_bring, lv_color_hex(0xE11D48), 0);
+    lv_obj_set_style_border_opa(w_bring, LV_OPA_COVER, 0);
+    lv_obj_set_style_border_width(w_bring, 14, 0);
+    w_bring_l = mk_label(w_bring, &ui_font_num54, 0, 0, "-");
+    lv_obj_set_style_text_color(w_bring_l, lv_color_hex(0x111111), 0);
+    w_blimg = mk_image(w_sp, 0, 0, 256);
+    lv_image_set_inner_align(w_blimg, LV_IMAGE_ALIGN_TOP_LEFT);
+    lv_obj_add_flag(w_bring, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(w_blimg, LV_OBJ_FLAG_HIDDEN);
+    w_hien = mk_label_w(w_sp, &ui_font_cap12, 0, 0, W_SPW - 2, LV_TEXT_ALIGN_CENTER);   /* v13 VML: "HIEN TAI" duoi bien */
+    lv_label_set_text(w_hien, "HIỆN TẠI");
+    lv_obj_add_flag(w_hien, LV_OBJ_FLAG_HIDDEN);
 
     w_sc = mk_box(two, W_CX, W_Y, W_CW, W_HALF);                  /* the bien */
     w_card(w_sc);
@@ -132,6 +148,14 @@ static void build_two(void)
     lv_obj_set_style_border_opa(w_ring, LV_OPA_COVER, 0);
     w_ring_l = mk_label(w_ring, &ui_font_sign40, 0, 0, "-");
     lv_obj_set_style_text_color(w_ring_l, lv_color_hex(0x111111), 0);
+    w_limg = mk_image(w_sc, 0, 0, 256);
+    lv_image_set_inner_align(w_limg, LV_IMAGE_ALIGN_TOP_LEFT);
+    lv_obj_add_flag(w_limg, LV_OBJ_FLAG_HIDDEN);
+    w_vtile = ui_partner_tile(w_sc, UI_SRC_VML, 44);
+    w_vtxt = mk_label_w(w_sc, &ui_font_cap12, 0, 0, W_CW - 2, LV_TEXT_ALIGN_CENTER);
+    lv_label_set_text(w_vtxt, "Chưa có chỉ dẫn rẽ");
+    lv_obj_add_flag(w_vtile, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(w_vtxt, LV_OBJ_FLAG_HIDDEN);
 
     w_lo = mk_box(two, W_CX, W_Y + W_HALF + 8, W_CW, W_HALF);    /* o duoi */
     w_card(w_lo);
@@ -217,16 +241,16 @@ static void render_two(void)
         lv_obj_set_width(w_chip, cw);
         lx += cw + 5;
     }
-    bool g = src == UI_SRC_GOFA;
-    const char *sn = g ? "GOFA" : "waze";
+    bool g = src == UI_SRC_GOFA, vm = src == UI_SRC_VML;
+    const char *sn = vm ? "VML" : g ? "GOFA" : "waze";
     lv_label_set_text(w_src_l, sn);
     int sw = text_w(sn, &ui_font_cap12) + 10;
     lv_obj_set_width(w_src, sw);
     lv_obj_center(w_src_l);
     int rx = UI_W - 8 - sw;
     lv_obj_set_x(w_src, rx);
-    lv_obj_set_style_bg_color(w_src, lv_color_hex(phone ? (g ? 0x0B8F4D : 0x33CCFF) : (night ? 0x4A5068 : 0xB9BDCA)), 0);
-    lv_obj_set_style_text_color(w_src_l, lv_color_hex(phone ? (g ? 0xFFFFFF : 0x05263A) : (night ? 0xFFFFFF : 0x14112B)), 0);
+    lv_obj_set_style_bg_color(w_src, lv_color_hex(phone ? (vm ? 0xE4252B : g ? 0x0B8F4D : 0x33CCFF) : (night ? 0x4A5068 : 0xB9BDCA)), 0);
+    lv_obj_set_style_text_color(w_src_l, lv_color_hex(phone ? (vm || g ? 0xFFFFFF : 0x05263A) : (night ? 0xFFFFFF : 0x14112B)), 0);
     const ui_alert_t *ex = NULL, *rs = NULL;
     if (hw)
         for (int i = 0; i < al_n; i++) {
@@ -256,7 +280,26 @@ static void render_two(void)
         lv_obj_set_x(w_ct, lx);
         lx += 28 + 5;
     }
-    show(w_gps, !waze);                                            /* khong co ung dung dan duong: chi co GPS */
+    bool vst = vm && waze && nv && street_nav[0];                  /* 27/11 ban VML: ten duong (tu chi dan re) o dong tren, canh chu VML */
+    bool vdb = vm && waze && vml_dbg[0];                           /* v11 thu: byte 14/15 goi bien (do toc do) o dong tren */
+    show(w_gps, !waze || vst || vdb);
+    if (vst || vdb) {
+        char tb[140];
+        if (vst && vdb) snprintf(tb, sizeof tb, "%s  %s", vml_dbg, street_nav);
+        else snprintf(tb, sizeof tb, "%s", vst ? street_nav : vml_dbg);
+        lv_label_set_text(w_gps, tb);
+        lv_label_set_long_mode(w_gps, LV_LABEL_LONG_DOT);
+        lv_obj_set_style_text_font(w_gps, &ui_font_txt14, 0);
+        lv_obj_set_style_text_align(w_gps, LV_TEXT_ALIGN_LEFT, 0);
+        lv_obj_set_y(w_gps, (W_TOP_H - ui_font_txt14.line_height) / 2);
+        lv_obj_set_style_text_color(w_gps, fg, 0);
+        lv_obj_set_x(w_gps, lx);
+        lv_obj_set_width(w_gps, rx - 8 - lx > 0 ? rx - 8 - lx : 0);
+    } else {
+        lv_obj_set_style_text_font(w_gps, &ui_font_sm12, 0);
+        lv_obj_set_style_text_align(w_gps, LV_TEXT_ALIGN_CENTER, 0);
+        lv_obj_set_y(w_gps, (W_TOP_H - ui_font_sm12.line_height) / 2);
+    }
     if (!waze) {
         lv_label_set_text(w_gps, "Chỉ có GPS");
         lv_obj_set_style_text_color(w_gps, fg, 0);
@@ -280,23 +323,110 @@ static void render_two(void)
     lv_color_t sc = speed < 0 ? lv_color_hex(p->dim) : level == UI_LEVEL_OVER ? th->over : lv_color_hex(night ? 0xFFB020 : 0xD97706);
     lv_obj_set_style_text_color(w_num, sc, 0);
     lv_obj_set_style_text_color(w_kmh, fg, 0);
-    if (clk_h >= 0) snprintf(b, sizeof b, "%02d:%02d", clk_h % 24, clk_m % 60);
-    else snprintf(b, sizeof b, "--:--");
+    bool bs = vm;                                                  /* v13 VML: o trai = toc do + bien HIEN TAI (bo cuc co dinh, khong nhay) */
+    if (clk_h >= 0 && (!vm || clk_synced)) snprintf(b, sizeof b, "%02d:%02d", clk_h % 24, clk_m % 60);
+    else snprintf(b, sizeof b, vm ? "" : "--:--");                 /* VML khong gui gio: an gio chua chinh */
     lv_label_set_text(w_clk, b);
+    show(w_num, true);
+    show(w_hien, bs);
+    lv_obj_set_style_border_color(w_sp, bs && level == UI_LEVEL_OVER ? th->over : lv_color_hex(p->bd), 0);
+    lv_obj_set_style_border_width(w_sp, bs && level == UI_LEVEL_OVER ? 3 : 1, 0);
+    if (bs) {
+        const lv_font_t *vf = &ui_font_speed72;
+        char sb[8];
+        if (speed < 0) snprintf(sb, sizeof sb, "--");
+        else snprintf(sb, sizeof sb, "%d", speed % 1000);
+        if (text_w(sb, vf) > W_SPW - 12) vf = &ui_font_speed62;
+        lv_obj_set_style_text_font(w_num, vf, 0);
+        lv_label_set_text(w_num, sb);
+        int vb = 70;                                               /* chan so */
+        lv_obj_set_y(w_num, vb - baseline(vf));
+        lv_label_set_text(w_kmh, speed < 0 ? "CHƯA ĐO" : "km/h");
+        lv_obj_set_style_text_font(w_kmh, speed < 0 ? &ui_font_cap12 : &ui_font_txt14, 0);
+        lv_obj_set_style_text_color(w_kmh, lv_color_hex(p->dim), 0);
+        lv_obj_set_width(w_kmh, W_SPW - 2);
+        lv_obj_set_style_text_align(w_kmh, LV_TEXT_ALIGN_CENTER, 0);
+        lv_obj_set_pos(w_kmh, 0, vb + 4);
+        const int BR = 74, bx = (W_SPW - 2 - BR) / 2, by = 100;
+        bool bimg = vml_limit_img && limit <= 0;
+        show(w_bring, !bimg);
+        show(w_blimg, bimg);
+        if (!bimg) {
+            char lb[8];
+            if (limit > 0) snprintf(lb, sizeof lb, "%d", limit % 1000);
+            else snprintf(lb, sizeof lb, "-");
+            lv_obj_set_size(w_bring, BR, BR);
+            lv_obj_set_style_border_width(w_bring, BR * 12 / 100, 0);
+            lv_obj_set_pos(w_bring, bx, by);
+            lv_obj_set_style_text_font(w_bring_l, limit <= 0 || limit >= 100 ? &ui_font_sign32 : &ui_font_sign40, 0);
+            lv_label_set_text(w_bring_l, lb);
+            lv_obj_center(w_bring_l);
+        } else {
+            lv_image_set_src(w_blimg, vml_limit_img); lv_obj_invalidate(w_blimg);
+            lv_image_set_scale(w_blimg, (uint32_t)(BR * 256 / (int)vml_limit_img->header.w));
+            lv_obj_set_pos(w_blimg, bx, by);
+        }
+        lv_obj_set_y(w_hien, by + BR + 3);
+        lv_obj_set_style_text_color(w_hien, lv_color_hex(p->dim), 0);
+    } else {
+        show(w_bring, false);
+        show(w_blimg, false);
+        lv_label_set_text(w_kmh, "km/h");
+        lv_obj_set_style_text_font(w_kmh, &ui_font_txt14, 0);
+        lv_obj_set_style_text_align(w_kmh, LV_TEXT_ALIGN_LEFT, 0);
+        lv_obj_set_width(w_kmh, LV_SIZE_CONTENT);
+        lv_obj_set_pos(w_kmh, 9, 6);
+    }
     lv_obj_set_style_text_color(w_clk, fg, 0);
 
     /* --- the bien --- */
+    bool full = false;                                             /* v13: bo the canh bao ca cot (bo cuc co dinh theo giai lap 28/11) */
+    show(w_sc, !full);
+    lv_obj_set_y(w_lo, full ? W_Y : W_Y + W_HALF + 8);
+    lv_obj_set_height(w_lo, full ? W_H : W_HALF);
     int sh = lo ? W_HALF : W_H;
     lv_obj_set_height(w_sc, sh);
     show(w_arr, nv);
     show(w_tdist, nv);
-    show(w_div, nv);
+    show(w_div, nv && !bs);
+    show(w_vtile, false);
+    show(w_vtxt, bs && !nv);
     int R;
-    if (nv) {
+    if (bs) {                                                      /* bien da o o trai: the nay chi co mui ten re */
+        R = 0;
+        if (nv) {
+            const lv_image_dsc_t *arr = vml_nav_img ? vml_nav_img : arrow_for_turn(turn_now);
+            int A = lo ? 52 : 80;
+            lv_image_set_src(w_arr, arr ? arr : &arrow_straight); lv_obj_invalidate(w_arr);
+            lv_image_set_scale(w_arr, (uint32_t)(A * 256 / (arr ? (int)arr->header.w : 64)));
+            lv_obj_set_style_image_recolor(w_arr, fg, 0);
+            lv_obj_set_style_image_recolor_opa(w_arr, arr && arr == vml_nav_img && arr->header.cf != LV_COLOR_FORMAT_A8 ? LV_OPA_TRANSP : LV_OPA_COVER, 0);   /* v12: anh re mau giu nguyen mau */
+            lv_obj_set_style_image_opa(w_arr, LV_OPA_COVER, 0);
+            char num[12], d[20];
+            const char *u;
+            fmt_dist2(num, sizeof num, &u, dist_now);
+            if (num[0]) snprintf(d, sizeof d, "%s %s", num, u);
+            else d[0] = 0;
+            lv_label_set_text(w_tdist, d);
+            lv_obj_set_style_text_color(w_tdist, fg, 0);
+            lv_obj_set_width(w_tdist, W_CW - 4);
+            int gh = A + (d[0] ? 4 + (int)ui_font_txt16.line_height : 0), y0 = (sh - 2 - gh) / 2;
+            lv_obj_set_pos(w_arr, (W_CW - 2 - A) / 2, y0);
+            lv_obj_set_y(w_tdist, y0 + A + 4);
+        } else {
+            int y0 = (sh - 2 - 44 - 6 - (int)ui_font_cap12.line_height) / 2;
+            lv_obj_set_pos(w_vtile, (W_CW - 2 - 44) / 2, y0);
+            lv_obj_set_y(w_vtxt, y0 + 50);
+            lv_obj_set_style_text_color(w_vtxt, lv_color_hex(p->dim), 0);
+        }
+    } else if (nv) {
+        lv_obj_set_width(w_tdist, W_DIVX - 4);
         R = 52;
-        const lv_image_dsc_t *arr = arrow_for_turn(turn_now);
-        lv_image_set_src(w_arr, arr ? arr : &arrow_straight);
+        const lv_image_dsc_t *arr = vml_nav_img ? vml_nav_img : arrow_for_turn(turn_now);
+        lv_image_set_src(w_arr, arr ? arr : &arrow_straight); lv_obj_invalidate(w_arr);
+        lv_image_set_scale(w_arr, (uint32_t)(40 * 256 / (arr ? (int)arr->header.w : 64)));
         lv_obj_set_style_image_recolor(w_arr, fg, 0);
+        lv_obj_set_style_image_recolor_opa(w_arr, arr && arr == vml_nav_img && arr->header.cf != LV_COLOR_FORMAT_A8 ? LV_OPA_TRANSP : LV_OPA_COVER, 0);
         lv_obj_set_style_image_opa(w_arr, arr ? LV_OPA_COVER : LV_OPA_60, 0);
         char num[12], d[20];
         const char *u;
@@ -315,6 +445,11 @@ static void render_two(void)
     } else {
         R = lo ? 80 : 120;
     }
+    if (bs) {
+        show(w_ring, false);
+        show(w_limg, false);
+        goto lower;
+    }
     lv_obj_set_size(w_ring, R, R);
     lv_obj_set_style_border_width(w_ring, R * 12 / 100, 0);
     int rcx = nv ? W_DIVX + 1 + (W_CW - 2 - W_DIVX - 1) / 2 : (W_CW - 2) / 2;
@@ -330,8 +465,18 @@ static void render_two(void)
     lv_obj_set_style_text_font(w_ring_l, rf, 0);
     lv_label_set_text(w_ring_l, b);
     lv_obj_center(w_ring_l);
+    bool limg = vml_limit_img && limit <= 0;                       /* ban VML: anh bien hien tai thay vong "-" */
+    show(w_ring, !limg);
+    show(w_limg, limg);
+    if (limg) {
+        lv_image_set_src(w_limg, vml_limit_img); lv_obj_invalidate(w_limg);
+        lv_image_set_scale(w_limg, (uint32_t)(R * 256 / (int)vml_limit_img->header.w));
+        lv_obj_set_pos(w_limg, rcx - R / 2, (sh - 2 - R) / 2);
+    }
 
     /* --- o duoi --- */
+lower:
+    lv_obj_set_height(w_lo_lab, LV_SIZE_CONTENT);
     lv_obj_set_style_text_font(w_lo_lab, lo == 3 ? &ui_font_txt14 : &ui_font_cap12, 0);
     show(w_lo, lo != 0);
     show(w_lo_img, lo == 2);
@@ -360,11 +505,18 @@ static void render_two(void)
     } else {
         lv_obj_set_style_opa(w_lo, LV_OPA_COVER, 0);
     }
+    bool sap = lo == 2 && vm && ev->code == 8;                     /* v13: bien tiep theo = the "SAP TOI" vien cam */
     if (lo == 2) {                                                 /* canh bao phia truoc: bien + khoang cach, nen vang */
-        lv_obj_set_style_bg_color(w_lo, night ? lv_color_hex(0x3A300A) : lv_color_hex(0xFFF4C2), 0);
-        lv_obj_set_style_border_color(w_lo, night ? lv_color_hex(0xFFD400) : lv_color_hex(0xB45309), 0);
+        lv_obj_set_style_bg_color(w_lo, sap ? lv_color_hex(night ? 0x2E200A : 0xFFEBD0) : night ? lv_color_hex(0x3A300A) : lv_color_hex(0xFFF4C2), 0);
+        lv_obj_set_style_border_color(w_lo, sap ? lv_color_hex(night ? 0xFF9900 : 0xC2410C) : night ? lv_color_hex(0xFFD400) : lv_color_hex(0xB45309), 0);
         lv_obj_set_style_border_width(w_lo, 2, 0);
-        lv_image_set_src(w_lo_img, sign_for_alert(ev->code));
+        if (vml_alert_img) {                                        /* ban VML: anh bien / camera cua app */
+            lv_image_set_src(w_lo_img, vml_alert_img); lv_obj_invalidate(w_lo_img);
+            lv_image_set_scale(w_lo_img, 36 * 256 / vml_alert_img->header.w);
+        } else {
+            lv_image_set_src(w_lo_img, sign_for_alert(ev->code));
+            lv_image_set_scale(w_lo_img, 36 * 256 / 48);
+        }
         char num[12];
         const char *unit;
         if (ev->code == 8 && ev->value > 0) {
@@ -373,10 +525,43 @@ static void render_two(void)
         } else {
             fmt_dist2(num, sizeof num, &unit, ev->dist);
         }
+        if (full) {                                                /* v10: anh to + khoang cach to + chu (camera / tram thu phi + gia ve) */
+            const int IM = 72;
+            lv_image_set_scale(w_lo_img, (uint32_t)(IM * 256 / (vml_alert_img ? (int)vml_alert_img->header.w : 48)));
+            lv_obj_set_pos(w_lo_img, (W_CW - 2 - IM) / 2, 10);
+            const lv_font_t *f = text_w(num, &ui_font_num54) + 30 > W_CW - 8 ? &ui_font_num30 : &ui_font_num54;
+            int nb = 10 + IM + 8 + baseline(f) * 95 / 100;
+            w_num_unit(w_lo_num, w_lo_unit, num, unit, f, W_CW - 4, nb);
+            show(w_lo_lab, vml_alert_txt[0] != 0);
+            lv_obj_set_style_text_font(w_lo_lab, &ui_font_txt14, 0);
+            lv_obj_set_width(w_lo_lab, W_CW - 12);
+            lv_obj_set_x(w_lo_lab, 4);
+            lv_obj_set_height(w_lo_lab, 3 * (int)ui_font_txt14.line_height);   /* LONG_DOT: xuong dong, qua 3 dong thi ... */
+            lv_label_set_text(w_lo_lab, vml_alert_txt);
+            lv_obj_set_style_text_color(w_lo_lab, night ? lv_color_white() : lv_color_hex(0x14112B), 0);
+            lv_obj_set_y(w_lo_lab, nb + 10);
+        } else if (sap) {                                          /* SAP TOI | bien 48 px | met */
+            lv_color_t oc = lv_color_hex(night ? 0xFF9900 : 0xC2410C);
+            show(w_lo_lab, true);
+            lv_obj_set_style_text_font(w_lo_lab, &ui_font_cap12, 0);
+            lv_obj_set_width(w_lo_lab, W_CW - 12);
+            lv_obj_set_x(w_lo_lab, 4);
+            lv_label_set_text(w_lo_lab, "SẮP TỚI");
+            lv_obj_set_style_text_color(w_lo_lab, oc, 0);
+            lv_obj_set_y(w_lo_lab, 6);
+            const int IM = 48;
+            lv_image_set_scale(w_lo_img, (uint32_t)(IM * 256 / (vml_alert_img ? (int)vml_alert_img->header.w : 48)));
+            lv_obj_set_pos(w_lo_img, 8, 32);
+            const lv_font_t *f = text_w(num, &ui_font_num30) + 14 > W_CW - IM - 18 ? &ui_font_txt16 : &ui_font_num30;
+            w_num_unit(w_lo_num, w_lo_unit, num, unit, f, W_CW - IM - 18, 32 + IM / 2 + baseline(f) * 95 / 200);
+            lv_obj_set_x(w_lo_num, lv_obj_get_style_x(w_lo_num, 0) + IM + 12);
+            lv_obj_set_x(w_lo_unit, lv_obj_get_style_x(w_lo_unit, 0) + IM + 12);
+        } else {
         show(w_lo_lab, false);
         lv_obj_set_pos(w_lo_img, (W_CW - 2 - 36) / 2, 10);
         w_num_unit(w_lo_num, w_lo_unit, num, unit, &ui_font_num30, W_CW - 4, 10 + 36 + 8 + baseline(&ui_font_num30) * 95 / 100 + 4);
-        lv_color_t c = night ? lv_color_hex(0xFFD400) : lv_color_hex(0xB45309);
+        }
+        lv_color_t c = sap ? lv_color_hex(night ? 0xFF9900 : 0xC2410C) : night ? lv_color_hex(0xFFD400) : lv_color_hex(0xB45309);
         lv_obj_set_style_text_color(w_lo_num, c, 0);
         lv_obj_set_style_text_color(w_lo_unit, c, 0);
     }
@@ -444,11 +629,11 @@ static void render_two(void)
         fmt_dist2(num, sizeof num, &u, eta_rm > 0 ? eta_rm : -1);
         if (!num[0]) {                                             /* chua co quang con lai: gio den, khong thi gio hien tai */
             if (eta_txt[0]) snprintf(num, sizeof num, "%s", eta_txt);
-            else if (clk_h >= 0) snprintf(num, sizeof num, "%02d:%02d", clk_h % 24, clk_m % 60);
-            else snprintf(num, sizeof num, "--");
+            else if (clk_h >= 0 && (!vm || clk_synced)) snprintf(num, sizeof num, "%02d:%02d", clk_h % 24, clk_m % 60);
+            else snprintf(num, sizeof num, vm ? "" : "--");        /* VML: gio chua chinh thi chi hien ten duong */
             u = "";
         }
-        int lh = (int)ui_font_txt14.line_height + 4, ncap = baseline(&ui_font_num30) * 95 / 100;
+        int lh = (int)ui_font_txt14.line_height + 4, ncap = num[0] ? baseline(&ui_font_num30) * 95 / 100 : 0;
         int top = (W_HALF - 4 - lh - ncap) / 2;
         lv_obj_set_y(w_lo_lab, top);
         const lv_font_t *f = strchr(num, ':') || num[0] == '-' ? &ui_font_dist24 : &ui_font_num30;

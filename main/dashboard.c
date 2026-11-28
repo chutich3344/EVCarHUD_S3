@@ -94,6 +94,10 @@ static lv_timer_t *blink_tmr, *toast_tmr;
 /* --- trang thai --- */
 static int speed = -2, limit = -1, level = -1;
 static bool nav_on, has_route;
+static const lv_image_dsc_t *vml_nav_img, *vml_alert_img, *vml_limit_img;
+static char vml_alert_txt[96];
+static char vml_dbg[24];                          /* v11 thu: chuoi do (byte 14/15 goi bien) */                    /* ban VML: chu kem canh bao (camera, tram thu phi + gia ve...) */   /* ban VML: anh tu app (NULL = mac dinh) */
+static bool keep_on;
 static int clk_h = -1, clk_m = -1, day = -1, month = -1, wday = -1;
 static int screen = -1;
 static bool sig_ok, phone, waze = true, moving, clk_synced;
@@ -560,7 +564,7 @@ static void set_screen(int s)
 static void update_screen(void)
 {
     /* 24/11: dang thay den giao thong (app LANE): khong ve man cho khi do den > 30 s / chua co Waze */
-    set_screen((!sig_ok || (!nav_on && !moving)) && !tl_live() ? SCR_STANDBY : nav_on ? SCR_NAV : SCR_CRUISE);
+    set_screen((!sig_ok || (!nav_on && !moving && !keep_on)) && !tl_live() ? SCR_STANDBY : nav_on ? SCR_NAV : SCR_CRUISE);
 }
 
 /* ======================= canh bao toc do ======================= */
@@ -612,8 +616,38 @@ void ui_toast(const char *text)
     lv_obj_center(lbl_toast);
     show(toast, true);
     lv_obj_move_foreground(toast);
+    lv_timer_set_period(toast_tmr, strlen(text) > 24 ? 5000 : 2000);   /* dong dai (bao loi / ma goi): de lau cho kip doc */
     lv_timer_reset(toast_tmr);
     lv_timer_resume(toast_tmr);
+}
+
+/* Bang chu toan man tren lop tren cung (ban VML thu: tom tat log lan chay truoc). Cham hoac het gio thi tat. */
+static lv_obj_t *info_box;
+static void info_close(lv_timer_t *t) { (void)t; if (info_box) { lv_obj_delete(info_box); info_box = NULL; } }   /* timer 1 lan: LVGL tu xoa */
+void __attribute__((weak)) ui_info_long_press(void) {}
+static void info_long(lv_event_t *e) { (void)e; ui_info_long_press(); }
+static void info_click(lv_event_t *e) { (void)e; if (info_box) { lv_obj_delete_async(info_box); info_box = NULL; } }
+void ui_info(const char *text, int ms)
+{
+    info_close(NULL);
+    info_box = lv_obj_create(lv_layer_top());
+    lv_obj_remove_style_all(info_box);
+    lv_obj_set_size(info_box, UI_W, UI_H);
+    lv_obj_set_style_bg_color(info_box, lv_color_hex(0x0B0F1A), 0);
+    lv_obj_set_style_bg_opa(info_box, LV_OPA_COVER, 0);
+    lv_obj_set_style_pad_all(info_box, 6, 0);
+    lv_obj_add_flag(info_box, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_add_event_cb(info_box, info_click, LV_EVENT_SHORT_CLICKED, NULL);
+    lv_obj_add_event_cb(info_box, info_long, LV_EVENT_LONG_PRESSED, NULL);
+    lv_obj_t *l = lv_label_create(info_box);
+    lv_obj_set_width(l, UI_W - 12);
+    lv_label_set_long_mode(l, LV_LABEL_LONG_WRAP);
+    lv_obj_set_style_text_font(l, &ui_font_txt14, 0);
+    lv_obj_set_style_text_color(l, lv_color_white(), 0);
+    lv_obj_set_style_text_line_space(l, -2, 0);
+    lv_label_set_text(l, text);
+    lv_timer_t *t = lv_timer_create(info_close, ms, NULL);
+    lv_timer_set_repeat_count(t, 1);
 }
 
 static void on_click(lv_event_t *e)
@@ -957,7 +991,7 @@ void ui_set_sound(bool on, int volume)
 void ui_open_settings(void) { settings_open(); }
 void ui_open_settings_page(int page) { settings_open(); set_page = page ? 1 : 0; settings_render(); }
 
-void ui_set_source(int s) { src = s == UI_SRC_GOFA ? UI_SRC_GOFA : UI_SRC_WAZE; render_standby(); }
+void ui_set_source(int s) { src = (s == UI_SRC_GOFA || s == UI_SRC_VML) ? s : UI_SRC_WAZE; render_standby(); }
 void ui_set_source_hook(void (*cb)(int)) { source_cb = cb; }
 void ui_test_switch(int want) { rb_start(want); }
 static void gofa_tmr_cb(lv_timer_t *t)
@@ -1023,11 +1057,11 @@ bool ui_settings_key(int key)
 lv_obj_t *ui_partner_tile(lv_obj_t *parent, int source, int size)
 {
     lv_obj_t *t = mk_fill(parent, 0, 0, size, size, size * 22 / 100);
-    bool g = source == UI_SRC_GOFA;
-    lv_obj_set_style_bg_color(t, g ? lv_color_hex(0x0B8F4D) : lv_color_hex(0x33CCFF), 0);
+    bool g = source == UI_SRC_GOFA, vm = source == UI_SRC_VML;
+    lv_obj_set_style_bg_color(t, vm ? lv_color_hex(0xE4252B) : g ? lv_color_hex(0x0B8F4D) : lv_color_hex(0x33CCFF), 0);
     const lv_font_t *f = size >= 64 ? &ui_font_unit22 : size >= 30 ? &ui_font_cap12 : &ui_font_sm12;
-    lv_obj_t *l = mk_label(t, f, 0, 0, g ? "GOFA" : "waze");
-    lv_obj_set_style_text_color(l, g ? lv_color_white() : lv_color_hex(0x05263A), 0);
+    lv_obj_t *l = mk_label(t, f, 0, 0, vm ? "VML" : g ? "GOFA" : "waze");
+    lv_obj_set_style_text_color(l, g || vm ? lv_color_white() : lv_color_hex(0x05263A), 0);
     lv_obj_center(l);
     return t;
 }
@@ -1146,7 +1180,7 @@ static void render_standby(void)
     if (!stby) return;
     char b[48];
     char hh[4] = "--", mm[4] = "--";
-    if (clk_h >= 0) {
+    if (clk_h >= 0 && (src != UI_SRC_VML || clk_synced)) {         /* VML khong gui gio: chua chinh thi khong hien gio sai */
         snprintf(hh, sizeof hh, "%02d", clk_h % 24);
         snprintf(mm, sizeof mm, "%02d", clk_m % 60);
     }
@@ -1162,7 +1196,7 @@ static void render_standby(void)
     else if (wday >= 0) snprintf(b, sizeof b, "%s", WDAY_NAME[wday % 7]);
     else snprintf(b, sizeof b, "Chờ giờ từ điện thoại");
     lv_label_set_text(lbl_date, b);
-    lv_label_set_text(lbl_sb_stat, phone ? "Đã kết nối điện thoại" : src == UI_SRC_GOFA ? "Chờ kết nối GOFA qua điện thoại" : "Chờ kết nối Waze qua điện thoại");
+    lv_label_set_text(lbl_sb_stat, phone ? "Đã kết nối điện thoại" : src == UI_SRC_VML ? "Chờ kết nối VietMap Live" : src == UI_SRC_GOFA ? "Chờ kết nối GOFA qua điện thoại" : "Chờ kết nối Waze qua điện thoại");
     lv_obj_set_style_text_color(lbl_sb_stat, th->accent, 0);
     lv_obj_set_style_text_opa(lbl_sb_stat, phone ? LV_OPA_COVER : LV_OPA_80, 0);
     const char *g = phone ? "GPS sẵn sàng" : (clk_h >= 0 && !clk_synced) ? "Giờ chưa chỉnh" : "Chưa có GPS";
@@ -1190,8 +1224,7 @@ lv_obj_t *ui_splash_create(const char *version, int source)
     lv_obj_set_style_text_letter_space(cap, 1, 0);
     lv_label_set_text(cap, "KẾT NỐI VỚI");
     lv_obj_align(cap, LV_ALIGN_CENTER, 0, 14);
-    bool g = source == UI_SRC_GOFA;
-    const char *nm = g ? "GOFA" : "Waze Mod";
+    const char *nm = source == UI_SRC_VML ? "VietMap Live" : source == UI_SRC_GOFA ? "GOFA" : "Waze Mod";
     int tw = 36 + 8 + text_w(nm, &ui_font_txt16), x0 = (UI_W - tw) / 2;
     lv_obj_t *tile = ui_partner_tile(scr, source, 36);
     lv_obj_set_pos(tile, x0, 146);
@@ -1316,7 +1349,7 @@ bool ui_get_clock(int *h, int *m)
 /* ======================= dan duong ======================= */
 void ui_set_nav(bool active, int turn, int dist_m, int exit_n, const char *street, int turn2)
 {
-    const lv_image_dsc_t *arr = active ? arrow_for_turn(turn) : NULL;
+    const lv_image_dsc_t *arr = active ? (vml_nav_img ? vml_nav_img : arrow_for_turn(turn)) : NULL;
     nav_on = active && arr;
     if (!street) street = "";
     if (!nav_on) {                                                 /* chay thuong: ten duong o hang tren */
@@ -1411,7 +1444,19 @@ void ui_set_waze(bool on)
 
 void ui_set_gps(int lvl) { (void)lvl; }
 
-void ui_set_hint(const char *text) { (void)text; }               /* man cho da co dong "Cho ket noi Waze..." */
+void ui_set_hint(const char *text) { (void)text; }
+
+void ui_set_nav_icon(const lv_image_dsc_t *img) { if (img) lv_image_cache_drop(img); vml_nav_img = img; render_all(); }
+void ui_set_vml_debug(const char *t) { if (strcmp(vml_dbg, t ? t : "")) { snprintf(vml_dbg, sizeof vml_dbg, "%s", t ? t : ""); render_all(); } }
+void ui_set_alert_text(const char *t) { snprintf(vml_alert_txt, sizeof vml_alert_txt, "%s", t ? t : ""); }
+void ui_set_alert_icon(const lv_image_dsc_t *img) { if (img) lv_image_cache_drop(img); vml_alert_img = img; render_all(); }
+void ui_set_limit_icon(const lv_image_dsc_t *img) { if (img) lv_image_cache_drop(img); vml_limit_img = img; render_all(); }
+void ui_set_keep_on(bool on)
+{
+    if (on == keep_on) return;
+    keep_on = on;
+    update_screen();
+}               /* man cho da co dong "Cho ket noi Waze..." */
 
 /* ======================= Ngay / Dem ======================= */
 void ui_set_mode(int m)
