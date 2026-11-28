@@ -41,6 +41,7 @@ Khung: `A5 5A 37 C3` | độ dài BE32 (tổng = len + 8) | ... | lệnh byte 12
 | v10 | xem git log | không dẫn đường: thẻ cảnh báo chiếm cả cột phải (ảnh 72 px + khoảng cách + chữ, vd trạm thu phí + giá vé); ngắt VML > 1 phút xoá mũi tên rẽ; log thêm vùng chữ 64 KB (nhãn cảnh báo, tên đường, gói lạ hex) |
 | v11 | ae42695 | bỏ log 02FF (heartbeat), không tự xoá log (giữ lâu bảng log để xoá) |
 | v12 | 09357f0 | mọi ảnh kèm nhãn (trừ biển tiếp) = mũi tên rẽ, giữ màu ảnh; tốc độ ước tính từ mét đếm ngược (29B byte 14-15 BE16, 0x86A0 = không có; biển tiếp gửi mỗi giây); mét rẽ tự trừ; lưu ảnh mẫu (rẽ, 0300) vùng 3 |
+| v13 | 2c83060 | bố cục cố định: trái luôn tốc độ ("--" CHƯA ĐO) + biển HIỆN TẠI, phải trên chỉ dẫn rẽ (không có thì "Chưa có chỉ dẫn rẽ"), phải dưới thẻ SẮP TỚI viền cam (biển + mét); vượt tốc viền đỏ |
 
 ## 5. Log (không có Wi-Fi nên không gửi lên mạng)
 Ghi vào 64 KB đầu khe firmware không chạy (v10: thêm 64 KB chữ ngay sau, mỗi dòng `giây loại nội-dung`) (thường `ota_1` = 0x200000). Bản ghi 8 byte `[loại][giây 24 bit][d0 d1 d2][0]`: 1 gói ngắn, 2 gói biển 29 B, 3 nối, 4 ngắt, 5 chỉ dẫn (d0 1 rẽ / 2 biển tiếp / 3 cảnh báo, d1d2 = m/10), 0x10 bật HUD. Nạp lại firmware ở 0x0 **không xoá** log.
