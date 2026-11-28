@@ -16,7 +16,10 @@ Khung: `A5 5A 37 C3` | độ dài BE32 (tổng = len + 8) | ... | lệnh byte 12
 |---|---|---|
 | `0E00` (22 byte) | App hỏi thông tin → trả chuỗi 110 byte `MODEL:H1V,HW:1.6.4,FW:1.3.6,...` | OK |
 | `0101` 29 byte | **byte 20 = biển tốc độ hiện tại** | OK, test thực tế 50/70 đúng |
-| `0101` 25 byte | dữ liệu 3 byte `86 A0 xx`, xx = 0 khi đứng yên | **nghi là tốc độ**, chưa xác minh |
+| `0101` 25 byte | `86 A0 xx` | KHÔNG phải tốc độ (chạy xe vẫn 0) |
+| `0101` 29 byte byte 14-15 | BE16 mét đếm ngược mỗi giây, 0x86A0 = không có | dùng ước tính tốc độ (v12) |
+| `02FF` 23 byte | heartbeat ~4 s | bỏ qua |
+| `0300` ~1275 byte | JPEG mỗi giây (chưa rõ nghĩa) | v12 lưu mẫu |
 | `40FE` | chỉ dẫn: BE32 độ dài ảnh ở byte 14 (1 = không ảnh), JPEG 60x60, rồi mét BE32 + 1 byte độ dài nhãn + nhãn UTF-8 | OK |
 
 `40FE`: nhãn `Tốc độ tiếp theo` = biển kế tiếp; ảnh có màu xanh dương = mũi tên rẽ (nhãn = tên đường); ảnh khác = cảnh báo (camera...).
@@ -36,6 +39,8 @@ Khung: `A5 5A 37 C3` | độ dài BE32 (tổng = len + 8) | ... | lệnh byte 12
 | v8 | 3941f28 | tự ghi log vào flash, lần bật sau hiện bảng LOG VML |
 | v9 | xem git log | luôn hiện bảng LOG VML (cả khi trống), log ghi vào khe không chạy, ẩn biển tiếp/mũi tên đã qua |
 | v10 | xem git log | không dẫn đường: thẻ cảnh báo chiếm cả cột phải (ảnh 72 px + khoảng cách + chữ, vd trạm thu phí + giá vé); ngắt VML > 1 phút xoá mũi tên rẽ; log thêm vùng chữ 64 KB (nhãn cảnh báo, tên đường, gói lạ hex) |
+| v11 | ae42695 | bỏ log 02FF (heartbeat), không tự xoá log (giữ lâu bảng log để xoá) |
+| v12 | 09357f0 | mọi ảnh kèm nhãn (trừ biển tiếp) = mũi tên rẽ, giữ màu ảnh; tốc độ ước tính từ mét đếm ngược (29B byte 14-15 BE16, 0x86A0 = không có; biển tiếp gửi mỗi giây); mét rẽ tự trừ; lưu ảnh mẫu (rẽ, 0300) vùng 3 |
 
 ## 5. Log (không có Wi-Fi nên không gửi lên mạng)
 Ghi vào 64 KB đầu khe firmware không chạy (v10: thêm 64 KB chữ ngay sau, mỗi dòng `giây loại nội-dung`) (thường `ota_1` = 0x200000). Bản ghi 8 byte `[loại][giây 24 bit][d0 d1 d2][0]`: 1 gói ngắn, 2 gói biển 29 B, 3 nối, 4 ngắt, 5 chỉ dẫn (d0 1 rẽ / 2 biển tiếp / 3 cảnh báo, d1d2 = m/10), 0x10 bật HUD. Nạp lại firmware ở 0x0 **không xoá** log.
